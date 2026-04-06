@@ -9,19 +9,13 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 20px;
             min-height: 100vh;
         }
-
         .container {
             max-width: 600px;
             margin: 0 auto;
@@ -30,14 +24,12 @@
             padding: 20px;
             box-shadow: 0 25px 45px rgba(0,0,0,0.2);
         }
-
         .header {
             text-align: center;
             margin-bottom: 24px;
             padding-bottom: 16px;
             border-bottom: 2px solid #e0e0e0;
         }
-
         h1 {
             font-size: 28px;
             background: linear-gradient(135deg, #667eea, #764ba2);
@@ -45,7 +37,6 @@
             background-clip: text;
             color: transparent;
         }
-
         .shift-info {
             background: #f0f0f0;
             display: inline-block;
@@ -54,7 +45,6 @@
             font-size: 14px;
             margin-top: 8px;
         }
-
         .mode-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -62,23 +52,13 @@
             font-size: 12px;
             margin-left: 10px;
         }
-
-        .mode-active {
-            background: #ff9800;
-            color: white;
-        }
-
-        .mode-normal {
-            background: #10b981;
-            color: white;
-        }
-
+        .mode-active { background: #ff9800; color: white; }
+        .mode-normal { background: #10b981; color: white; }
         .add-worker {
             display: flex;
             gap: 12px;
             margin-bottom: 24px;
         }
-
         .add-worker input {
             flex: 1;
             padding: 12px;
@@ -86,7 +66,6 @@
             border-radius: 28px;
             font-size: 16px;
         }
-
         .add-worker button {
             background: #667eea;
             color: white;
@@ -94,9 +73,7 @@
             border-radius: 28px;
             padding: 0 20px;
             cursor: pointer;
-            transition: transform 0.2s;
         }
-
         .worker-card {
             background: white;
             border-radius: 20px;
@@ -106,38 +83,19 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            animation: fadeIn 0.3s;
         }
-
         .worker-card-absent {
             background: #fff8e1;
             border-left: 4px solid #ff9800;
         }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px);}
-            to { opacity: 1; transform: translateY(0);}
-        }
-
-        .worker-name {
-            font-weight: 600;
-            font-size: 16px;
-        }
-
-        .worker-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
+        .worker-name { font-weight: 600; font-size: 16px; }
+        .worker-actions { display: flex; gap: 12px; align-items: center; }
         .ktu-select {
             padding: 8px 12px;
             border-radius: 20px;
             border: 1px solid #ccc;
             background: #f9f9f9;
-            cursor: pointer;
         }
-
         .present-btn {
             background: #10b981;
             color: white;
@@ -146,9 +104,7 @@
             padding: 8px 16px;
             cursor: pointer;
             font-weight: bold;
-            transition: transform 0.2s;
         }
-
         .absent-select {
             padding: 8px 12px;
             border-radius: 20px;
@@ -157,7 +113,6 @@
             font-weight: 500;
             cursor: pointer;
         }
-
         .finish-btn {
             width: 100%;
             margin-top: 15px;
@@ -169,17 +124,7 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s;
         }
-
-        button {
-            transition: all 0.2s ease;
-        }
-
-        button:active {
-            transform: scale(0.96);
-        }
-
         #absent-mode-btn {
             width: 100%;
             margin: 15px 0;
@@ -191,23 +136,19 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s;
         }
-
         .date-selector {
             margin: 15px 0;
             padding: 10px;
             background: #f5f5f5;
             border-radius: 16px;
         }
-
         .date-selector label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #555;
         }
-
         #date-picker {
             width: 100%;
             padding: 12px;
@@ -217,12 +158,6 @@
             text-align: center;
             cursor: pointer;
         }
-
-        #date-picker:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
         #show-result {
             width: 100%;
             background: #764ba2;
@@ -234,9 +169,7 @@
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s;
         }
-
         #result-table {
             margin-top: 20px;
             background: #f8f9fa;
@@ -244,33 +177,18 @@
             padding: 16px;
             overflow-x: auto;
         }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #667eea; color: white; }
+        .empty-message { text-align: center; padding: 30px; color: #666; }
+        .selected-date-badge {
             background: #667eea;
             color: white;
-            border-radius: 8px;
-        }
-
-        .empty-message {
+            padding: 8px 16px;
+            border-radius: 28px;
             text-align: center;
-            padding: 30px;
-            color: #666;
-            font-size: 16px;
-        }
-
-        .flatpickr-calendar {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin-bottom: 15px;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -294,9 +212,11 @@
         <button id="absent-mode-btn">📋 Проставити відсутніх</button>
         
         <div class="date-selector">
-            <label>📅 Дата відмітки:</label>
+            <label>📅 Оберіть дату:</label>
             <input type="text" id="date-picker" placeholder="Виберіть дату">
         </div>
+        
+        <div id="selected-date-badge" class="selected-date-badge">📅 Обрана дата: сьогодні</div>
         
         <button id="show-result">📊 Показати результат</button>
         <div id="result-table" style="display: none;"></div>
@@ -316,6 +236,22 @@
             let absentSelections = {};
             let selectedDate = new Date().toISOString().split('T')[0];
 
+            // Функція для форматування дати для відображення
+            function formatDate(dateStr) {
+                if (!dateStr) return 'сьогодні';
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+                }
+                return dateStr;
+            }
+
+            // Оновлення відображення вибраної дати
+            function updateSelectedDateDisplay() {
+                const formattedDate = formatDate(selectedDate);
+                document.getElementById('selected-date-badge').innerHTML = `📅 Обрана дата: ${formattedDate}`;
+            }
+
             // Ініціалізація календаря
             flatpickr("#date-picker", {
                 locale: "uk",
@@ -323,7 +259,8 @@
                 defaultDate: selectedDate,
                 onChange: function(selectedDates, dateStr, instance) {
                     selectedDate = dateStr;
-                    loadWorkers();
+                    updateSelectedDateDisplay();
+                    loadWorkers(); // перезавантажуємо працівників за обрану дату
                 }
             });
 
@@ -340,7 +277,9 @@
 
             async function loadWorkers() {
                 try {
-                    const res = await fetch(`/api/workers/${encodeURIComponent(workshop)}?date=${selectedDate}`);
+                    const url = `/api/workers/${encodeURIComponent(workshop)}?date=${selectedDate}`;
+                    console.log('Loading workers from:', url);
+                    const res = await fetch(url);
                     const data = await res.json();
                     workers = data.workers || [];
                     absentSelections = {};
@@ -416,7 +355,7 @@
                 container.innerHTML = '';
                 
                 if (workers.length === 0) {
-                    container.innerHTML = '<div class="empty-message">✅ Всі працівники відмічені на сьогодні!</div>';
+                    container.innerHTML = `<div class="empty-message">✅ Всі працівники відмічені за ${formatDate(selectedDate)}!</div>`;
                     return;
                 }
                 
@@ -558,19 +497,26 @@
                 }
             };
 
+            // Показати результат за обрану дату
             document.getElementById('show-result').onclick = async () => {
                 try {
-                    const res = await fetch(`/api/report?date=${selectedDate}`);
+                    const url = `/api/report?date=${selectedDate}`;
+                    console.log('Loading report from:', url);
+                    const res = await fetch(url);
                     const data = await res.json();
                     
+                    const formattedDate = formatDate(selectedDate);
+                    
                     if (!data || data.length === 0) {
-                        document.getElementById('result-table').innerHTML = `<p>Немає даних за ${selectedDate}</p>`;
+                        document.getElementById('result-table').innerHTML = `<div style="padding:20px; text-align:center;">📭 Немає даних за ${formattedDate}<br><br>💡 Відмітьте працівників за цю дату, щоб побачити результат.</div>`;
                         document.getElementById('result-table').style.display = 'block';
                         return;
                     }
                     
-                    let html = `<h3>📋 Результат відмічання за ${selectedDate}</h3>`;
-                    html += '<table><tr><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
+                    let html = `<h3>📋 Результат відмічання за ${formattedDate}</h3>`;
+                    html += '<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">';
+                    html += '<tr style="background:#f0f0f0;"><th>Працівник</th><th>Цех</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
+                    
                     data.forEach(row => {
                         let statusDisplay = '';
                         if (row.status === 'present') statusDisplay = '✅ Присутній';
@@ -581,11 +527,12 @@
                         else statusDisplay = row.status;
                         
                         html += `<tr>
-                                    <td>${escapeHtml(row.fullname)}</td>
-                                    <td>${statusDisplay}</td>
-                                    <td>${row.ktu}</td>
-                                    <td>${row.shift_hours}</td>
-                                </tr>`;
+                            <td>${escapeHtml(row.fullname)}</td>
+                            <td>${row.workshop || workshop}</td>
+                            <td>${statusDisplay}</td>
+                            <td>${row.ktu}</td>
+                            <td>${row.shift_hours}</td>
+                        </tr>`;
                     });
                     html += '</table>';
                     
@@ -593,9 +540,13 @@
                     document.getElementById('result-table').style.display = 'block';
                 } catch(e) {
                     console.error('Error loading report:', e);
+                    document.getElementById('result-table').innerHTML = '<div style="padding:20px; text-align:center;">❌ Помилка завантаження даних</div>';
+                    document.getElementById('result-table').style.display = 'block';
                 }
             };
 
+            // Ініціалізація
+            updateSelectedDateDisplay();
             loadCurrentShift();
             loadWorkers();
         })();
