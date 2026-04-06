@@ -25,7 +25,7 @@ async def on_startup():
     init_database()
     logger.info("Database initialized")
     
-    # Встановлюємо webhook для Telegram бота
+    # Встановлюємо webhook для Telegram бота (для aiogram 2.x)
     try:
         webhook_info = await bot.get_webhook_info()
         if webhook_info.url != WEBHOOK_URL:
@@ -40,7 +40,7 @@ async def on_startup():
 async def on_shutdown():
     """Очищення при завершенні"""
     try:
-        await bot.session.close()
+        await bot.close()
         logger.info("Bot session closed")
     except Exception as e:
         logger.error(f"Error closing bot session: {e}")
@@ -50,7 +50,10 @@ async def telegram_webhook(request: Request):
     """Обробник webhook від Telegram"""
     try:
         update_data = await request.json()
-        await dp.feed_update(bot, update_data)
+        # Для aiogram 2.x використовуємо process_update
+        from aiogram.types import Update
+        update = Update(**update_data)
+        await dp.process_update(update)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
