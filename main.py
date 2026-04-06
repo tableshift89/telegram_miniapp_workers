@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
+import json
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +37,11 @@ class OtherMark(BaseModel):
     worker_id: int
     status: str
 
+class OrderRequest(BaseModel):
+    product: str
+    weight: float
+    recipe: dict
+
 # Налаштування шаблонів та статики
 templates = Jinja2Templates(directory="app/templates")
 
@@ -54,7 +61,7 @@ async def lifespan(app: FastAPI):
         dp = d
         init_database()
         
-        # Підключення до Google Sheets та синхронізація
+        # Підключення до Google Sheets
         logger.info("📊 Connecting to Google Sheets...")
         init_google_sheets()
         sync_workers_from_google()
@@ -85,7 +92,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Telegram Worker Bot",
-    description="Worker attendance management system with Google Sheets integration",
+    description="Worker attendance + Recipe calculator with Google Sheets",
     lifespan=lifespan
 )
 
@@ -117,7 +124,7 @@ async def telegram_webhook(request: Request):
 async def webhook_get():
     return {"message": "Webhook is active", "bot_ready": bot is not None}
 
-# ==================== API ДЛЯ МІНІ-ДОДАТКУ ====================
+# ==================== API ДЛЯ МІНІ-ДОДАТКУ (ПРАЦІВНИКИ) ====================
 
 @app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
@@ -129,7 +136,6 @@ async def workshop_page(request: Request, workshop: str):
 async def get_workers(workshop: str):
     from app.database import get_workers_by_workshop
     workers = get_workers_by_workshop(workshop)
-    logger.info(f"📋 Workers for {workshop}: {len(workers)}")
     return {"workers": workers}
 
 @app.get("/api/all_workers/{workshop}")
@@ -170,10 +176,50 @@ async def current_shift():
     from app.database import get_current_shift
     return {"shift_hours": get_current_shift()}
 
-@app.get("/api/stats")
-async def get_stats():
-    from app.database import get_today_statistics
-    return get_today_statistics()
+# ==================== API ДЛЯ РЕЦЕПТУРИ ====================
+
+@app.get("/recipe", response_class=HTMLResponse)
+async def recipe_page(request: Request):
+    """Сторінка калькулятора рецептури"""
+    return templates.TemplateResponse("recipe.html", {"request": request})
+
+@app.post("/api/order")
+async def create_order(order: OrderRequest):
+    """Обробка замовлення з рецептури"""
+    order_data = {
+        "timestamp": datetime.now().isoformat(),
+        "product": order.product,
+        "weight": order.weight,
+        "recipe": order.recipe
+    }
+    
+    orders_file = "orders.json"
+    try:
+        if os.path.exists(orders_file):
+            with open(orders_file, 'r', encoding='utf-8') as f:
+                orders = json.load(f)
+        else:
+            orders = []
+        
+        orders.append(order_data)
+        
+        with open(orders_file, 'w', encoding='utf-8') as f:
+            json.dump(orders, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"✅ Order saved: {order.product} - {order.weight}kg")
+        return {"ok": True, "message": "Order saved"}
+    except Exception as e:
+        logger.error(f"Failed to save order: {e}")
+        return {"ok": False, "message": str(e)}
+
+@app.get("/api/orders")
+async def get_orders():
+    """Отримати всі замовлення"""
+    orders_file = "orders.json"
+    if os.path.exists(orders_file):
+        with open(orders_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
 
 # ==================== ДІАГНОСТИКА ====================
 
@@ -217,6 +263,13 @@ async def debug_db():
         "Пакування": get_all_workers_by_shop("Пакування")
     }
 
+@app.post("/api/sync-now")
+async def sync_now():
+    """Примусова синхронізація з Google Sheets"""
+    from app.google_sheets import sync_workers_to_local_db
+    success = sync_workers_to_local_db()
+    return {"ok": success, "message": "Sync completed" if success else "Sync failed"}
+
 # ==================== СЛУЖБОВІ ====================
 
 @app.get("/health")
@@ -231,9 +284,11 @@ async def health_check():
 async def root():
     return {
         "message": "Telegram Worker Bot is running",
+        "version": "2.0.0",
         "endpoints": {
             "health": "/health",
             "workshop": "/workshop/{DMT|Пакування}",
+            "recipe": "/recipe",
             "debug_google": "/debug/google",
             "debug_db": "/debug/db"
         }
