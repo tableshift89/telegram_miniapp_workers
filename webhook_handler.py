@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 import logging
 import os
 import sys
-import asyncio
 
 # Додаємо теку `app` до шляху імпорту
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -30,25 +29,24 @@ try:
     dp = d
     init_database()
     
-    # Встановлюємо поточний екземпляр бота для aiogram 2.x
-    bot._current = bot  # Важливо для aiogram 2.x
-    
     logger.info("✅ Bot and database initialized successfully")
     
-    # Встановлюємо webhook асинхронно
+    # Встановлюємо webhook
+    import asyncio
     webhook_url = f"{APP_URL}{WEBHOOK_PATH}"
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.run_until_complete(bot.set_webhook(webhook_url))
         logger.info(f"🔗 Webhook set to {webhook_url}")
+        loop.close()
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
-    finally:
-        loop.close()
         
 except Exception as e:
     logger.error(f"❌ CRITICAL: Failed to initialize bot: {e}")
+    import traceback
+    traceback.print_exc()
 
 @app.post(WEBHOOK_PATH)
 async def webhook(request: Request):
@@ -63,17 +61,16 @@ async def webhook(request: Request):
         update_data = await request.json()
         logger.info(f"📨 Received update: {update_data.get('update_id')}")
         
-        # Встановлюємо поточний екземпляр бота перед обробкою
         from aiogram.types import Update
         update = Update(**update_data)
         
-        # Ключовий рядок для aiogram 2.x:
-        bot._current = bot
-        
+        # Обробляємо оновлення
         await dp.process_update(update)
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook processing error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=200, content={"ok": False, "error": str(e)})
 
 @app.get(WEBHOOK_PATH)
