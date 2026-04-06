@@ -227,3 +227,4 @@ async def echo(message: types.Message):
         "🙏 Будь ласка, використовуйте кнопки меню для навігації.",
         reply_markup=main_keyboard()
     )
+__all__ = ['bot', 'dp']
