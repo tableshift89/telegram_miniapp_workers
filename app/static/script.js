@@ -1,13 +1,13 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-const workshop = window.location.pathname.split('/').pop();
+const workshop = decodeURIComponent(window.location.pathname.split('/').pop());
 document.getElementById('workshop-name').innerText = workshop;
 
 let currentShift = 8;
 let workers = [];
-let absentMode = false;  // Режим проставлення відсутніх
-let absentSelections = {}; // Зберігає вибрані статуси для кожного працівника
+let absentMode = false;
+let absentSelections = {};
 
 async function loadCurrentShift() {
     try {
@@ -22,13 +22,12 @@ async function loadCurrentShift() {
 
 async function loadWorkers() {
     try {
-        const res = await fetch(`/api/workers/${workshop}`);
+        const res = await fetch(`/api/workers/${encodeURIComponent(workshop)}`);
         const data = await res.json();
-        workers = data.workers;
-        // Скидаємо вибрані статуси
+        workers = data.workers || [];
         absentSelections = {};
         workers.forEach(w => {
-            absentSelections[w.id] = 'Вщ'; // за замовчуванням Вщ
+            absentSelections[w.id] = 'Вщ';
         });
         renderWorkers();
     } catch(e) {
@@ -36,25 +35,78 @@ async function loadWorkers() {
     }
 }
 
+async function submitAllAbsent() {
+    if (workers.length === 0) {
+        tg.showPopup({
+            title: "Інформація",
+            message: "Немає невідмічених працівників",
+            buttons: [{type: "ok"}]
+        });
+        return;
+    }
+
+    tg.showPopup({
+        title: "Підтвердження",
+        message: `Відправити ${workers.length} працівників як відсутніх?`,
+        buttons: [
+            {id: "cancel", type: "cancel", text: "Скасувати"},
+            {id: "ok", type: "ok", text: "Так, відправити"}
+        ]
+    }, async (buttonId) => {
+        if (buttonId === "ok") {
+            for (const w of workers) {
+                const status = absentSelections[w.id] || 'Вщ';
+                try {
+                    await fetch('/api/mark_other', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({worker_id: w.id, status: status})
+                    });
+                } catch(e) {
+                    console.error('Error marking absent:', e);
+                }
+            }
+            workers = [];
+            renderWorkers();
+            exitAbsentMode();
+            tg.showPopup({
+                title: "✅ Готово!",
+                message: "Всіх відсутніх відправлено",
+                buttons: [{type: "ok"}]
+            });
+        }
+    });
+}
+
+function exitAbsentMode() {
+    absentMode = false;
+    const btn = document.getElementById('absent-mode-btn');
+    const badge = document.getElementById('mode-badge');
+    btn.style.background = '#ff9800';
+    btn.innerHTML = '📋 Проставити відсутніх';
+    badge.innerHTML = '✅ Режим присутності';
+    badge.className = 'mode-badge mode-normal';
+    renderWorkers();
+}
+
 function renderWorkers() {
     const container = document.getElementById('workers-list');
     container.innerHTML = '';
     
     if (workers.length === 0) {
-        container.innerHTML = '<div class="empty-message" style="text-align:center; padding:20px; color:#666;">✅ Всі працівники відмічені на сьогодні!</div>';
+        container.innerHTML = '<div class="empty-message">✅ Всі працівники відмічені на сьогодні!</div>';
         return;
     }
     
     if (absentMode) {
-        // Режим "Проставити відсутніх" - показуємо тільки drop-down (без КТУ)
         workers.forEach(w => {
             const card = document.createElement('div');
             card.className = 'worker-card worker-card-absent';
             card.dataset.id = w.id;
             card.innerHTML = `
-                <span class="worker-name">${w.fullname}</span>
+                <span class="worker-name">${escapeHtml(w.fullname)}</span>
                 <div class="worker-actions">
-                    <select class="absent-select" data-id="${w.id}" data-status>
+                    <select class="absent-select" data-id="${w.id}">
                         <option value="Вщ" ${absentSelections[w.id] === 'Вщ' ? 'selected' : ''}>🏖️ Відпустка (Вщ)</option>
                         <option value="Пр" ${absentSelections[w.id] === 'Пр' ? 'selected' : ''}>😷 Прогул (Пр)</option>
                         <option value="На" ${absentSelections[w.id] === 'На' ? 'selected' : ''}>📚 Навчання (На)</option>
@@ -65,29 +117,25 @@ function renderWorkers() {
             container.appendChild(card);
         });
         
-        // Додаємо кнопку "Завершити"
         const finishBtn = document.createElement('button');
         finishBtn.className = 'finish-btn';
         finishBtn.innerHTML = '✅ Завершити та відправити всіх відсутніх';
         finishBtn.onclick = submitAllAbsent;
         container.appendChild(finishBtn);
         
-        // Зберігаємо вибрані статуси
         document.querySelectorAll('.absent-select').forEach(select => {
             select.onchange = (e) => {
                 const id = parseInt(select.dataset.id);
                 absentSelections[id] = select.value;
             };
         });
-        
     } else {
-        // Звичайний режим - тільки кнопка "Присутній" + КТУ
         workers.forEach(w => {
             const card = document.createElement('div');
             card.className = 'worker-card';
             card.dataset.id = w.id;
             card.innerHTML = `
-                <span class="worker-name">${w.fullname}</span>
+                <span class="worker-name">${escapeHtml(w.fullname)}</span>
                 <div class="worker-actions">
                     <select class="ktu-select" data-id="${w.id}">
                         <option value="0.9">0.9</option>
@@ -102,7 +150,6 @@ function renderWorkers() {
             container.appendChild(card);
         });
         
-        // Обробники для кнопок "Присутній"
         document.querySelectorAll('.present-btn').forEach(btn => {
             btn.onclick = async (e) => {
                 e.stopPropagation();
@@ -127,71 +174,16 @@ function renderWorkers() {
     }
 }
 
-// Відправка всіх відсутніх
-async function submitAllAbsent() {
-    if (workers.length === 0) {
-        tg.showPopup({
-            title: "Інформація",
-            message: "Немає невідмічених працівників",
-            buttons: [{type: "ok"}]
-        });
-        return;
-    }
-    
-    tg.showPopup({
-        title: "Підтвердження",
-        message: `Відправити ${workers.length} працівників як відсутніх?`,
-        buttons: [
-            {id: "cancel", type: "cancel", text: "Скасувати"},
-            {id: "ok", type: "ok", text: "Так, відправити"}
-        ]
-    }, async (buttonId) => {
-        if (buttonId === "ok") {
-            // Відправляємо всіх
-            for (const w of workers) {
-                const status = absentSelections[w.id] || 'Вщ';
-                try {
-                    await fetch('/api/mark_other', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({worker_id: w.id, status: status})
-                    });
-                } catch(e) {
-                    console.error(`Error marking ${w.fullname}:`, e);
-                }
-            }
-            
-            // Очищаємо список
-            workers = [];
-            renderWorkers();
-            
-            // Вимикаємо режим відсутніх
-            exitAbsentMode();
-            
-            tg.showPopup({
-                title: "✅ Готово!",
-                message: "Всіх відсутніх відправлено",
-                buttons: [{type: "ok"}]
-            });
-        }
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, (m) => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
     });
 }
 
-// Вихід з режиму відсутніх
-function exitAbsentMode() {
-    absentMode = false;
-    const absentModeBtn = document.getElementById('absent-mode-btn');
-    const modeBadge = document.getElementById('mode-badge');
-    
-    absentModeBtn.style.background = '#ff9800';
-    absentModeBtn.innerHTML = '📋 Проставити відсутніх';
-    modeBadge.innerHTML = '✅ Режим присутності';
-    modeBadge.className = 'mode-badge mode-normal';
-    
-    renderWorkers();
-}
-
-// Додавання нового працівника
 document.getElementById('add-worker-btn').onclick = async () => {
     const name = document.getElementById('new-worker-name').value.trim();
     if (!name) return;
@@ -209,42 +201,10 @@ document.getElementById('add-worker-btn').onclick = async () => {
     }
 };
 
-// Кнопка "Проставити відсутніх"
-const absentModeBtn = document.getElementById('absent-mode-btn');
+const absentBtn = document.getElementById('absent-mode-btn');
 const modeBadge = document.getElementById('mode-badge');
 
-absentModeBtn.onclick = () => {
-    if (workers.length === 0) {
-        tg.showPopup({
-            title: "Інформація",
-            message: "Немає невідмічених працівників",
-            buttons: [{type: "ok"}]
-        });
-        return;
-    }
-    
-    absentMode = true;
-    absentModeBtn.style.background = '#10b981';
-    absentModeBtn.innerHTML = '🔙 Повернутись до присутності';
-    modeBadge.innerHTML = '📋 Режим відсутніх';
-    modeBadge.className = 'mode-badge mode-active';
-    
-    renderWorkers();
-};
-
-// Якщо натиснули кнопку "Повернутись до присутності" - виходимо з режиму
-// Це обробляється через окрему перевірку, але ми додамо альтернативний вихід
-// В функції renderWorkers() ми не робимо автоматичного виходу, тому потрібен окремий обробник
-// Оновлюємо обробник кнопки, щоб він перемикав режим
-// Вже є вище, але додамо логіку виходу при повторному натисканні
-// Перевизначимо обробник:
-
-// Видаляємо старий обробник і додаємо новий
-const newAbsentBtn = document.getElementById('absent-mode-btn');
-const newModeBadge = document.getElementById('mode-badge');
-
-// Видаляємо старі обробники (якщо є) і додаємо новий
-newAbsentBtn.onclick = () => {
+absentBtn.onclick = () => {
     if (workers.length === 0 && !absentMode) {
         tg.showPopup({
             title: "Інформація",
@@ -255,40 +215,34 @@ newAbsentBtn.onclick = () => {
     }
     
     if (absentMode) {
-        // Виходимо з режиму відсутніх
         absentMode = false;
-        newAbsentBtn.style.background = '#ff9800';
-        newAbsentBtn.innerHTML = '📋 Проставити відсутніх';
-        newModeBadge.innerHTML = '✅ Режим присутності';
-        newModeBadge.className = 'mode-badge mode-normal';
+        absentBtn.style.background = '#ff9800';
+        absentBtn.innerHTML = '📋 Проставити відсутніх';
+        modeBadge.innerHTML = '✅ Режим присутності';
+        modeBadge.className = 'mode-badge mode-normal';
         renderWorkers();
     } else {
-        // Входимо в режим відсутніх
         absentMode = true;
-        newAbsentBtn.style.background = '#10b981';
-        newAbsentBtn.innerHTML = '🔙 Повернутись до присутності';
-        newModeBadge.innerHTML = '📋 Режим відсутніх';
-        newModeBadge.className = 'mode-badge mode-active';
+        absentBtn.style.background = '#10b981';
+        absentBtn.innerHTML = '🔙 Повернутись до присутності';
+        modeBadge.innerHTML = '📋 Режим відсутніх';
+        modeBadge.className = 'mode-badge mode-active';
         renderWorkers();
     }
 };
 
-// Показати результат
 document.getElementById('show-result').onclick = async () => {
     try {
         const res = await fetch('/api/report');
         const data = await res.json();
         
-        if (data.length === 0) {
+        if (!data || data.length === 0) {
             document.getElementById('result-table').innerHTML = '<p>Немає даних за сьогодні</p>';
             document.getElementById('result-table').style.display = 'block';
             return;
         }
         
-        let html = '<h3>📋 Результат відмічання</h3>';
-        html += '<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">';
-        html += '<tr style="background:#f0f0f0;"><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th><tr>';
-        
+        let html = '<h3>📋 Результат відмічання</h3><table><tr><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
         data.forEach(row => {
             let statusDisplay = '';
             if (row.status === 'present') statusDisplay = '✅ Присутній';
@@ -299,11 +253,11 @@ document.getElementById('show-result').onclick = async () => {
             else statusDisplay = row.status;
             
             html += `<tr>
-                        <td>${row.fullname}</td>
+                        <td>${escapeHtml(row.fullname)}</td>
                         <td>${statusDisplay}</td>
                         <td>${row.ktu}</td>
                         <td>${row.shift_hours}</td>
-                     </tr>`;
+                    </tr>`;
         });
         html += '</table>';
         
@@ -314,6 +268,5 @@ document.getElementById('show-result').onclick = async () => {
     }
 };
 
-// Ініціалізація
 loadCurrentShift();
 loadWorkers();
