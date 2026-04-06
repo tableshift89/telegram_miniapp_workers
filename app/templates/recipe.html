@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>📝 Калькулятор рецептури</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.95);
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 24px;
+            font-size: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 16px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 24px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .ingredient {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .ingredient:last-child {
+            border-bottom: none;
+        }
+
+        .ingredient-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .ingredient-amount {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .total {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 2px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 28px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .info-text {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Калькулятор рецептури</h1>
+
+        <div class="form-group">
+            <label>🍽️ Виберіть продукт:</label>
+            <select id="product-select">
+                <option value="Борщ">🥣 Борщ</option>
+                <option value="Пельмені">🥟 Пельмені</option>
+                <option value="Вареники">🥟 Вареники з картоплею</option>
+                <option value="Суп-пюре">🥣 Суп-пюре грибний</option>
+                <option value="Каша гречана">🍚 Каша гречана з м'ясом</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>⚖️ Кількість (кг):</label>
+            <input type="number" id="weight" placeholder="Введіть кількість в кг" step="0.1" min="0.1">
+        </div>
+
+        <div class="result-card" id="result" style="display: none;">
+            <h3 style="margin-bottom: 16px; color: #333;">📋 Склад рецепту:</h3>
+            <div id="ingredients-list"></div>
+            <div class="total">
+                <span>📦 Загальна вага:</span>
+                <span id="total-weight">0 кг</span>
+            </div>
+        </div>
+
+        <button id="order-btn">📦 Замовити в склад</button>
+        <div class="info-text">
+            * Розрахунок: основа 80%, додаткові інгредієнти по 10% кожен
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // База даних інгредієнтів для різних продуктів
+        const recipes = {
+            "Борщ": {
+                base: "Буряк",
+                ingredients: [
+                    { name: "Капуста", percent: 80 },
+                    { name: "Картопля", percent: 10 },
+                    { name: "Морква", percent: 10 }
+                ]
+            },
+            "Пельмені": {
+                base: "Тісто",
+                ingredients: [
+                    { name: "Свинина", percent: 80 },
+                    { name: "Цибуля", percent: 10 },
+                    { name: "Спеції", percent: 10 }
+                ]
+            },
+            "Вареники": {
+                base: "Тісто",
+                ingredients: [
+                    { name: "Картопля", percent: 80 },
+                    { name: "Цибуля", percent: 10 },
+                    { name: "Спеції", percent: 10 }
+                ]
+            },
+            "Суп-пюре": {
+                base: "Гриби",
+                ingredients: [
+                    { name: "Вершки", percent: 80 },
+                    { name: "Картопля", percent: 10 },
+                    { name: "Спеції", percent: 10 }
+                ]
+            },
+            "Каша гречана": {
+                base: "Гречка",
+                ingredients: [
+                    { name: "Свинина", percent: 80 },
+                    { name: "Цибуля", percent: 10 },
+                    { name: "Морква", percent: 10 }
+                ]
+            }
+        };
+
+        const productSelect = document.getElementById('product-select');
+        const weightInput = document.getElementById('weight');
+        const resultDiv = document.getElementById('result');
+        const ingredientsList = document.getElementById('ingredients-list');
+        const totalWeightSpan = document.getElementById('total-weight');
+        const orderBtn = document.getElementById('order-btn');
+
+        function calculateRecipe() {
+            const product = productSelect.value;
+            const weight = parseFloat(weightInput.value);
+            
+            if (!weight || weight <= 0) {
+                resultDiv.style.display = 'none';
+                return;
+            }
+
+            const recipe = recipes[product];
+            if (!recipe) return;
+
+            // Розрахунок кількості кожного інгредієнта
+            const baseAmount = weight * 0.8;
+            const ingredientAmounts = recipe.ingredients.map(ing => ({
+                name: ing.name,
+                amount: weight * (ing.percent / 100)
+            }));
+
+            // Відображення результатів
+            let html = `
+                <div class="ingredient">
+                    <span class="ingredient-name">🍳 ${recipe.base} (основа):</span>
+                    <span class="ingredient-amount">${baseAmount.toFixed(2)} кг</span>
+                </div>
+            `;
+
+            ingredientAmounts.forEach(ing => {
+                html += `
+                    <div class="ingredient">
+                        <span class="ingredient-name">➕ ${ing.name}:</span>
+                        <span class="ingredient-amount">${ing.amount.toFixed(2)} кг</span>
+                    </div>
+                `;
+            });
+
+            ingredientsList.innerHTML = html;
+            totalWeightSpan.innerText = `${weight.toFixed(2)} кг`;
+            resultDiv.style.display = 'block';
+        }
+
+        productSelect.addEventListener('change', calculateRecipe);
+        weightInput.addEventListener('input', calculateRecipe);
+
+        orderBtn.addEventListener('click', async () => {
+            const product = productSelect.value;
+            const weight = parseFloat(weightInput.value);
+            
+            if (!weight || weight <= 0) {
+                tg.showPopup({
+                    title: "Помилка",
+                    message: "Будь ласка, введіть кількість в кг",
+                    buttons: [{type: "ok"}]
+                });
+                return;
+            }
+
+            const recipe = recipes[product];
+            const baseAmount = weight * 0.8;
+            const ingredientAmounts = recipe.ingredients.map(ing => ({
+                name: ing.name,
+                amount: weight * (ing.percent / 100)
+            }));
+
+            // Формуємо повідомлення для відправки в Telegram
+            let message = `📦 *НОВЕ ЗАМОВЛЕННЯ*\n\n`;
+            message += `🍽️ *Продукт:* ${product}\n`;
+            message += `⚖️ *Загальна вага:* ${weight.toFixed(2)} кг\n\n`;
+            message += `📋 *Потрібні інгредієнти:*\n`;
+            message += `• ${recipe.base}: ${baseAmount.toFixed(2)} кг (80%)\n`;
+            ingredientAmounts.forEach(ing => {
+                message += `• ${ing.name}: ${ing.amount.toFixed(2)} кг\n`;
+            });
+
+            // Відправка даних в Telegram
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        product: product,
+                        weight: weight,
+                        recipe: {
+                            base: recipe.base,
+                            base_amount: baseAmount,
+                            ingredients: ingredientAmounts
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    tg.showPopup({
+                        title: "✅ Замовлення відправлено!",
+                        message: `Ваше замовлення на ${product} (${weight.toFixed(2)} кг) отримано.`,
+                        buttons: [{type: "ok"}]
+                    });
+                    
+                    // Відправляємо повідомлення в чат з ботом
+                    tg.sendData(JSON.stringify({
+                        type: 'order',
+                        product: product,
+                        weight: weight,
+                        message: message
+                    }));
+                } else {
+                    tg.showPopup({
+                        title: "Помилка",
+                        message: "Не вдалося відправити замовлення",
+                        buttons: [{type: "ok"}]
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                tg.showPopup({
+                    title: "Помилка",
+                    message: "Помилка з'єднання",
+                    buttons: [{type: "ok"}]
+                });
+            }
+        });
+
+        // Ініціалізація
+        calculateRecipe();
+    </script>
+</body>
+</html>
