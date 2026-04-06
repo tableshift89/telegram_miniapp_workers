@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 gc = None
 sheet = None
 
+# ID вашої Google Таблиці
+SPREADSHEET_ID = '1TZMudoqr2GbOZCbfWSWJLqVZ67pZCck766OyDAD11pU'
+
 def init_google_sheets():
     """Ініціалізація підключення до Google Sheets"""
     global gc, sheet
@@ -18,37 +21,39 @@ def init_google_sheets():
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
         
-        # Шлях до файлу credentials.json
-        creds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials.json')
+        # Шлях до файлу credentials.json в корені проекту
+        creds_path = '/opt/render/project/src/credentials.json'
+        
+        # Також перевіряємо локальний шлях
+        if not os.path.exists(creds_path):
+            creds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials.json')
         
         if os.path.exists(creds_path):
-            logger.info(f"Found credentials file at: {creds_path}")
+            logger.info(f"✅ Found credentials at: {creds_path}")
             creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
         else:
-            logger.warning(f"Credentials file not found at: {creds_path}")
-            # Або з змінної середовища
+            # Перевіряємо змінну середовища
             creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
             if creds_json:
                 import json
                 creds_dict = json.loads(creds_json)
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-                logger.info("Loaded credentials from environment variable")
+                logger.info("✅ Loaded credentials from environment variable")
             else:
-                logger.error("❌ No credentials found anywhere")
+                logger.error("❌ No credentials found")
                 return False
         
         gc = gspread.authorize(creds)
-        sheet_id = '1TZMudoqr2GbOZCbfWSWJLqVZ67pZCck766OyDAD11pU'
-        sheet = gc.open_by_key(sheet_id)
-        logger.info(f"✅ Google Sheets connected: {sheet.title}")
+        sheet = gc.open_by_key(SPREADSHEET_ID)
+        logger.info(f"✅ Connected to Google Sheet: {sheet.title}")
         
-        # Виводимо список всіх аркушів
+        # Виводимо всі аркуші
         worksheets = sheet.worksheets()
-        logger.info(f"Available worksheets: {[ws.title for ws in worksheets]}")
+        logger.info(f"📋 Available worksheets: {[ws.title for ws in worksheets]}")
         
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to connect: {e}")
+        logger.error(f"❌ Connection error: {e}")
         return False
 
 def load_workers_from_sheets():
@@ -60,46 +65,68 @@ def load_workers_from_sheets():
             return []
     
     try:
-        # Отримуємо назву аркуша = поточна дата (наприклад "07.04.26")
-        sheet_name = datetime.now().strftime("%d.%m.%y")
-        logger.info(f"Looking for worksheet: {sheet_name}")
+        # Беремо перший аркуш
+        worksheet = sheet.get_worksheet(0)
+        logger.info(f"📄 Using worksheet: {worksheet.title}")
         
-        try:
-            worksheet = sheet.worksheet(sheet_name)
-            logger.info(f"✅ Found worksheet: {sheet_name}")
-        except Exception as e:
-            logger.warning(f"Worksheet '{sheet_name}' not found: {e}")
-            # Спробуємо знайти будь-який аркуш з даними
-            worksheets = sheet.worksheets()
-            if worksheets:
-                # Беремо перший аркуш
-                worksheet = worksheets[0]
-                logger.info(f"Using first available worksheet: {worksheet.title}")
-            else:
-                logger.error("No worksheets found")
-                return []
+        # Отримуємо всі дані
+        all_data = worksheet.get_all_values()
+        logger.info(f"📊 Total rows: {len(all_data)}")
         
-        # Отримуємо всі записи
-        records = worksheet.get_all_records()
-        logger.info(f"Raw records from sheet: {records}")
+        if len(all_data) < 2:
+            logger.warning("No data rows found (need header + at least 1 data row)")
+            return []
+        
+        # Перший рядок - заголовки
+        headers = all_data[0]
+        logger.info(f"📋 Headers: {headers}")
+        
+        # Знаходимо індекси колонок (підтримуємо різні назви)
+        col_idx = {'workshop': 0, 'fullname': 1, 'ktu': 2}  # за замовчуванням
+        
+        for idx, header in enumerate(headers):
+            header_clean = str(header).strip().lower()
+            if 'цех' in header_clean or 'workshop' in header_clean:
+                col_idx['workshop'] = idx
+            elif 'піб' in header_clean or 'fullname' in header_clean or 'name' in header_clean or 'прізвище' in header_clean:
+                col_idx['fullname'] = idx
+            elif 'кту' in header_clean or 'ktu' in header_clean:
+                col_idx['ktu'] = idx
+        
+        logger.info(f"🔍 Column mapping: {col_idx}")
         
         workers = []
-        for idx, row in enumerate(records):
-            # Підтримуємо різні назви колонок
-            workshop = str(row.get('Цех', row.get('workshop', ''))).strip()
-            fullname = str(row.get('ПІБ', row.get('fullname', row.get('name', '')))).strip()
-            default_ktu = float(row.get('КТУ_за_умовчанням', row.get('ktu', 1.0)))
+        for row_idx, row in enumerate(all_data[1:], start=2):
+            if len(row) <= max(col_idx.values()):
+                logger.warning(f"Row {row_idx} has insufficient columns: {len(row)}")
+                continue
             
-            logger.info(f"Row {idx}: workshop='{workshop}', fullname='{fullname}', ktu={default_ktu}")
+            workshop = str(row[col_idx['workshop']]).strip()
+            fullname = str(row[col_idx['fullname']]).strip()
             
-            if workshop and fullname and workshop in ['DMT', 'Пакування']:
+            # Пропускаємо порожні рядки
+            if not workshop or not fullname:
+                continue
+            
+            # Отримуємо КТУ
+            try:
+                ktu_str = row[col_idx['ktu']].strip().replace(',', '.')
+                default_ktu = float(ktu_str) if ktu_str else 1.0
+            except (ValueError, IndexError):
+                default_ktu = 1.0
+            
+            # Перевіряємо чи цех правильний
+            if workshop in ['DMT', 'Пакування']:
                 workers.append({
                     'fullname': fullname,
                     'workshop': workshop,
                     'default_ktu': default_ktu
                 })
+                logger.info(f"✅ Row {row_idx}: {workshop} | {fullname} | KTU: {default_ktu}")
+            else:
+                logger.warning(f"Row {row_idx}: Unknown workshop '{workshop}'")
         
-        logger.info(f"✅ Loaded {len(workers)} workers from Google Sheets")
+        logger.info(f"✅ Total workers loaded: {len(workers)}")
         return workers
     except Exception as e:
         logger.error(f"❌ Failed to load workers: {e}")
@@ -116,7 +143,7 @@ def save_attendance_to_sheets(worker_name, workshop, status, ktu, shift_hours):
             return False
     
     try:
-        # Аркуш для результатів
+        # Аркуш для результатів з датою
         result_sheet_name = f"Результати_{datetime.now().strftime('%d.%m.%y')}"
         
         try:
@@ -124,7 +151,7 @@ def save_attendance_to_sheets(worker_name, workshop, status, ktu, shift_hours):
         except:
             worksheet = sheet.add_worksheet(title=result_sheet_name, rows=1000, cols=10)
             worksheet.append_row(['Дата', 'Час', 'Цех', 'ПІБ', 'Статус', 'КТУ', 'Годин'])
-            logger.info(f"Created new worksheet: {result_sheet_name}")
+            logger.info(f"✅ Created worksheet: {result_sheet_name}")
         
         now = datetime.now()
         date_str = now.strftime("%Y-%m-%d")
@@ -142,7 +169,7 @@ def save_attendance_to_sheets(worker_name, workshop, status, ktu, shift_hours):
             date_str, time_str, workshop, worker_name, status_display, ktu, shift_hours
         ])
         
-        logger.info(f"✅ Saved: {worker_name} - {status_display}")
+        logger.info(f"✅ Saved to Google Sheets: {worker_name} - {status_display}")
         return True
     except Exception as e:
         logger.error(f"❌ Failed to save: {e}")
@@ -157,7 +184,7 @@ def sync_workers_to_local_db():
         logger.warning("No workers loaded from Google Sheets")
         return False
     
-    # Отримуємо поточних працівників з БД
+    # Отримуємо поточних працівників
     existing_workers = {}
     for workshop in ['DMT', 'Пакування']:
         existing = get_all_workers_by_shop(workshop)
@@ -165,14 +192,14 @@ def sync_workers_to_local_db():
             key = f"{w['workshop']}|{w['fullname']}"
             existing_workers[key] = True
     
-    # Додаємо нових працівників
+    # Додаємо нових
     added = 0
     for worker in workers_from_gs:
         key = f"{worker['workshop']}|{worker['fullname']}"
         if key not in existing_workers:
             if add_worker(worker['fullname'], worker['workshop']):
                 added += 1
-                logger.info(f"Added new worker: {worker['fullname']} ({worker['workshop']})")
+                logger.info(f"➕ Added new worker: {worker['fullname']} ({worker['workshop']})")
     
     logger.info(f"✅ Synced {added} new workers from Google Sheets")
     return True
