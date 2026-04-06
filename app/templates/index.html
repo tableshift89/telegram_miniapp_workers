@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Облік цеху</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
             margin: 0;
@@ -90,6 +94,7 @@
             border-radius: 28px;
             padding: 0 20px;
             cursor: pointer;
+            transition: transform 0.2s;
         }
 
         .worker-card {
@@ -101,11 +106,17 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            animation: fadeIn 0.3s;
         }
 
         .worker-card-absent {
             background: #fff8e1;
             border-left: 4px solid #ff9800;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px);}
+            to { opacity: 1; transform: translateY(0);}
         }
 
         .worker-name {
@@ -124,6 +135,7 @@
             border-radius: 20px;
             border: 1px solid #ccc;
             background: #f9f9f9;
+            cursor: pointer;
         }
 
         .present-btn {
@@ -134,6 +146,7 @@
             padding: 8px 16px;
             cursor: pointer;
             font-weight: bold;
+            transition: transform 0.2s;
         }
 
         .absent-select {
@@ -145,22 +158,18 @@
             cursor: pointer;
         }
 
-        .absent-submit-btn, .finish-btn {
-            background: #ff9800;
-            color: white;
-            border: none;
-            border-radius: 28px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
         .finish-btn {
             width: 100%;
             margin-top: 15px;
             background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 28px;
             padding: 14px;
             font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
         }
 
         button {
@@ -182,6 +191,36 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .date-selector {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 16px;
+        }
+
+        .date-selector label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        #date-picker {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 28px;
+            font-size: 16px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        #date-picker:focus {
+            outline: none;
+            border-color: #667eea;
         }
 
         #show-result {
@@ -195,6 +234,7 @@
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
+            transition: transform 0.2s;
         }
 
         #result-table {
@@ -216,13 +256,23 @@
             border-bottom: 1px solid #ddd;
         }
 
+        th {
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+        }
+
         .empty-message {
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             color: #666;
+            font-size: 16px;
+        }
+
+        .flatpickr-calendar {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
     </style>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="container">
@@ -242,6 +292,12 @@
         <div class="workers-list" id="workers-list"></div>
 
         <button id="absent-mode-btn">📋 Проставити відсутніх</button>
+        
+        <div class="date-selector">
+            <label>📅 Дата відмітки:</label>
+            <input type="text" id="date-picker" placeholder="Виберіть дату">
+        </div>
+        
         <button id="show-result">📊 Показати результат</button>
         <div id="result-table" style="display: none;"></div>
     </div>
@@ -251,13 +307,25 @@
             const tg = window.Telegram.WebApp;
             tg.expand();
 
-            const workshop = window.location.pathname.split('/').pop();
+            const workshop = decodeURIComponent(window.location.pathname.split('/').pop());
             document.getElementById('workshop-name').innerText = workshop;
 
             let currentShift = 8;
             let workers = [];
             let absentMode = false;
             let absentSelections = {};
+            let selectedDate = new Date().toISOString().split('T')[0];
+
+            // Ініціалізація календаря
+            flatpickr("#date-picker", {
+                locale: "uk",
+                dateFormat: "Y-m-d",
+                defaultDate: selectedDate,
+                onChange: function(selectedDates, dateStr, instance) {
+                    selectedDate = dateStr;
+                    loadWorkers();
+                }
+            });
 
             async function loadCurrentShift() {
                 try {
@@ -272,7 +340,7 @@
 
             async function loadWorkers() {
                 try {
-                    const res = await fetch(`/api/workers/${encodeURIComponent(workshop)}`);
+                    const res = await fetch(`/api/workers/${encodeURIComponent(workshop)}?date=${selectedDate}`);
                     const data = await res.json();
                     workers = data.workers || [];
                     absentSelections = {};
@@ -297,12 +365,12 @@
 
                 tg.showPopup({
                     title: "Підтвердження",
-                    message: `Відправити ${workers.length} працівників як відсутніх?`,
+                    message: `Відправити ${workers.length} працівників як відсутніх за ${selectedDate}?`,
                     buttons: [
                         {id: "cancel", type: "cancel", text: "Скасувати"},
                         {id: "ok", type: "ok", text: "Так, відправити"}
                     ]
-                }, async function(buttonId) {
+                }, async (buttonId) => {
                     if (buttonId === "ok") {
                         for (const w of workers) {
                             const status = absentSelections[w.id] || 'Вщ';
@@ -310,10 +378,14 @@
                                 await fetch('/api/mark_other', {
                                     method: 'POST',
                                     headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({worker_id: w.id, status: status})
+                                    body: JSON.stringify({
+                                        worker_id: w.id,
+                                        status: status,
+                                        date: selectedDate
+                                    })
                                 });
                             } catch(e) {
-                                console.error('Error:', e);
+                                console.error('Error marking absent:', e);
                             }
                         }
                         workers = [];
@@ -321,7 +393,7 @@
                         exitAbsentMode();
                         tg.showPopup({
                             title: "✅ Готово!",
-                            message: "Всіх відсутніх відправлено",
+                            message: `Всіх відсутніх за ${selectedDate} відправлено`,
                             buttons: [{type: "ok"}]
                         });
                     }
@@ -357,10 +429,10 @@
                             <span class="worker-name">${escapeHtml(w.fullname)}</span>
                             <div class="worker-actions">
                                 <select class="absent-select" data-id="${w.id}">
-                                    <option value="Вщ" ${absentSelections[w.id] === 'Вщ' ? 'selected' : ''}>🏖️ Відпустка (Вщ)</option>
+                                    <option value="Вщ" ${absentSelections[w.id] === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний (Вщ)</option>
                                     <option value="Пр" ${absentSelections[w.id] === 'Пр' ? 'selected' : ''}>😷 Прогул (Пр)</option>
-                                    <option value="На" ${absentSelections[w.id] === 'На' ? 'selected' : ''}>📚 Навчання (На)</option>
-                                    <option value="Нз" ${absentSelections[w.id] === 'Нз' ? 'selected' : ''}>❌ Неявка (Нз)</option>
+                                    <option value="На" ${absentSelections[w.id] === 'На' ? 'selected' : ''}>📚 Відпустка за свій рахунок (На)</option>
+                                    <option value="Нз" ${absentSelections[w.id] === 'Нз' ? 'selected' : ''}>❌ Не з\'явився (-лась) (Нз)</option>
                                 </select>
                             </div>
                         `;
@@ -374,9 +446,9 @@
                     container.appendChild(finishBtn);
                     
                     document.querySelectorAll('.absent-select').forEach(select => {
-                        select.onchange = function(e) {
-                            const id = parseInt(this.dataset.id);
-                            absentSelections[id] = this.value;
+                        select.onchange = (e) => {
+                            const id = parseInt(select.dataset.id);
+                            absentSelections[id] = select.value;
                         };
                     });
                 } else {
@@ -401,9 +473,9 @@
                     });
                     
                     document.querySelectorAll('.present-btn').forEach(btn => {
-                        btn.onclick = async function(e) {
+                        btn.onclick = async (e) => {
                             e.stopPropagation();
-                            const id = parseInt(this.dataset.id);
+                            const id = parseInt(btn.dataset.id);
                             const ktuSelect = document.querySelector(`.ktu-select[data-id="${id}"]`);
                             const ktu = parseFloat(ktuSelect.value);
                             
@@ -411,13 +483,18 @@
                                 await fetch('/api/mark_present', {
                                     method: 'POST',
                                     headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({worker_id: id, ktu: ktu, shift_hours: currentShift})
+                                    body: JSON.stringify({
+                                        worker_id: id,
+                                        ktu: ktu,
+                                        shift_hours: currentShift,
+                                        date: selectedDate
+                                    })
                                 });
                                 const card = document.querySelector(`.worker-card[data-id="${id}"]`);
                                 if (card) card.remove();
                                 workers = workers.filter(w => w.id !== id);
                             } catch(e) {
-                                console.error('Error:', e);
+                                console.error('Error marking present:', e);
                             }
                         };
                     });
@@ -426,7 +503,7 @@
 
             function escapeHtml(str) {
                 if (!str) return '';
-                return str.replace(/[&<>]/g, function(m) {
+                return str.replace(/[&<>]/g, (m) => {
                     if (m === '&') return '&amp;';
                     if (m === '<') return '&lt;';
                     if (m === '>') return '&gt;';
@@ -434,7 +511,7 @@
                 });
             }
 
-            document.getElementById('add-worker-btn').onclick = async function() {
+            document.getElementById('add-worker-btn').onclick = async () => {
                 const name = document.getElementById('new-worker-name').value.trim();
                 if (!name) return;
                 
@@ -447,14 +524,14 @@
                     document.getElementById('new-worker-name').value = '';
                     await loadWorkers();
                 } catch(e) {
-                    console.error('Error:', e);
+                    console.error('Error adding worker:', e);
                 }
             };
 
             const absentBtn = document.getElementById('absent-mode-btn');
             const modeBadge = document.getElementById('mode-badge');
 
-            absentBtn.onclick = function() {
+            absentBtn.onclick = () => {
                 if (workers.length === 0 && !absentMode) {
                     tg.showPopup({
                         title: "Інформація",
@@ -481,35 +558,41 @@
                 }
             };
 
-            document.getElementById('show-result').onclick = async function() {
+            document.getElementById('show-result').onclick = async () => {
                 try {
-                    const res = await fetch('/api/report');
+                    const res = await fetch(`/api/report?date=${selectedDate}`);
                     const data = await res.json();
                     
                     if (!data || data.length === 0) {
-                        document.getElementById('result-table').innerHTML = '<p>Немає даних за сьогодні</p>';
+                        document.getElementById('result-table').innerHTML = `<p>Немає даних за ${selectedDate}</p>`;
                         document.getElementById('result-table').style.display = 'block';
                         return;
                     }
                     
-                    let html = '<h3>📋 Результат відмічання</h3><table><tr><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
+                    let html = `<h3>📋 Результат відмічання за ${selectedDate}</h3>`;
+                    html += '<table><tr><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
                     data.forEach(row => {
                         let statusDisplay = '';
                         if (row.status === 'present') statusDisplay = '✅ Присутній';
-                        else if (row.status === 'Вщ') statusDisplay = '🏖️ Відпустка';
+                        else if (row.status === 'Вщ') statusDisplay = '🏖️ Вихідний';
                         else if (row.status === 'Пр') statusDisplay = '😷 Прогул';
-                        else if (row.status === 'На') statusDisplay = '📚 Навчання';
-                        else if (row.status === 'Нз') statusDisplay = '❌ Неявка';
+                        else if (row.status === 'На') statusDisplay = '📚 Відпустка за свій рахунок';
+                        else if (row.status === 'Нз') statusDisplay = '❌ Не з\'явився (-лась)';
                         else statusDisplay = row.status;
                         
-                        html += `<tr><td>${escapeHtml(row.fullname)}</td><td>${statusDisplay}</td><td>${row.ktu}</td><td>${row.shift_hours}</td></tr>`;
+                        html += `<tr>
+                                    <td>${escapeHtml(row.fullname)}</td>
+                                    <td>${statusDisplay}</td>
+                                    <td>${row.ktu}</td>
+                                    <td>${row.shift_hours}</td>
+                                </tr>`;
                     });
                     html += '</table>';
                     
                     document.getElementById('result-table').innerHTML = html;
                     document.getElementById('result-table').style.display = 'block';
                 } catch(e) {
-                    console.error('Error:', e);
+                    console.error('Error loading report:', e);
                 }
             };
 
