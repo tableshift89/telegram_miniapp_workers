@@ -2,7 +2,7 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from aiogram.filters import Command
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -17,7 +17,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot)
+dp.middleware.setup(LoggingMiddleware())
 
 # Глобальна змінна для збереження вибраної зміни
 current_shift = 8
@@ -31,12 +32,11 @@ def main_keyboard():
             [KeyboardButton(text="☀️ Зміна"), KeyboardButton(text="📊 Результат")],
             [KeyboardButton(text="❓ Допомога")]
         ],
-        resize_keyboard=True,
-        one_time_keyboard=False
+        resize_keyboard=True
     )
     return keyboard
 
-@dp.message(Command("start"))
+@dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
     """Обробник команди /start"""
     welcome_text = """
@@ -63,7 +63,7 @@ async def cmd_start(message: types.Message):
     """
     await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard())
 
-@dp.message(lambda msg: msg.text == "☀️ Зміна")
+@dp.message_handler(lambda msg: msg.text == "☀️ Зміна")
 async def select_shift(message: types.Message):
     """Вибір зміни (годин роботи)"""
     keyboard = InlineKeyboardMarkup(
@@ -77,35 +77,35 @@ async def select_shift(message: types.Message):
                         parse_mode="Markdown", 
                         reply_markup=keyboard)
 
-@dp.callback_query(lambda c: c.data.startswith("shift_"))
-async def set_shift(callback: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data.startswith("shift_"))
+async def set_shift(callback_query: types.CallbackQuery):
     """Встановлення вибраної зміни"""
     global current_shift
-    shift = int(callback.data.split("_")[1])
+    shift = int(callback_query.data.split("_")[1])
     current_shift = shift
     
     # Зберігаємо в БД
     from app.database import set_current_shift_db
     set_current_shift_db(shift)
     
-    await callback.answer(f"✅ Зміна {shift} годин встановлена")
-    await callback.message.edit_text(
+    await callback_query.answer(f"✅ Зміна {shift} годин встановлена")
+    await callback_query.message.edit_text(
         f"✅ *Встановлено {shift}-годинну робочу зміну*\n\n"
         f"Тепер всі відмітки присутності будуть з {shift} годинами.",
         parse_mode="Markdown"
     )
     
     # Показуємо головне меню через 2 секунди
-    await callback.message.answer("Повертаюсь до головного меню...", reply_markup=main_keyboard())
+    await callback_query.message.answer("Повертаюсь до головного меню...", reply_markup=main_keyboard())
 
-@dp.callback_query(lambda c: c.data == "back_to_menu")
-async def back_to_menu(callback: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data == "back_to_menu")
+async def back_to_menu(callback_query: types.CallbackQuery):
     """Повернення до головного меню"""
-    await callback.message.delete()
-    await callback.message.answer("Головне меню:", reply_markup=main_keyboard())
-    await callback.answer()
+    await callback_query.message.delete()
+    await callback_query.message.answer("Головне меню:", reply_markup=main_keyboard())
+    await callback_query.answer()
 
-@dp.message(lambda msg: msg.text == "📊 Результат")
+@dp.message_handler(lambda msg: msg.text == "📊 Результат")
 async def show_result(message: types.Message):
     """Показати результат відмічання за сьогодні"""
     from app.database import get_attendance_report
@@ -189,7 +189,7 @@ async def show_result(message: types.Message):
     
     await message.answer(text, parse_mode="Markdown")
 
-@dp.message(lambda msg: msg.text == "❓ Допомога")
+@dp.message_handler(lambda msg: msg.text == "❓ Допомога")
 async def help_command(message: types.Message):
     """Допомога"""
     help_text = """
@@ -220,7 +220,7 @@ async def help_command(message: types.Message):
     """
     await message.answer(help_text, parse_mode="Markdown")
 
-@dp.message()
+@dp.message_handler()
 async def echo(message: types.Message):
     """Обробник невідомих повідомлень"""
     await message.answer(
