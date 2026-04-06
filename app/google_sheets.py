@@ -7,199 +7,174 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-gc = None
-sheet = None
-
-# ID вашої Google Таблиці
 SPREADSHEET_ID = '1TZMudoqr2GbOZCbfWSWJLqVZ67pZCck766OyDAD11pU'
 
-def init_google_sheets():
-    """Ініціалізація підключення до Google Sheets"""
-    global gc, sheet
-    
+def get_worksheet():
+    """Отримати робочий аркуш"""
     try:
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
         
-        # Шлях до файлу credentials.json в корені проекту
-        creds_path = '/opt/render/project/src/credentials.json'
+        # Перевіряємо ВСІ можливі шляхи
+        possible_paths = [
+            '/opt/render/project/src/credentials.json',
+            '/opt/render/project/credentials.json',
+            '/app/credentials.json',
+            'credentials.json',
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials.json'),
+            os.path.join(os.getcwd(), 'credentials.json'),
+            '/tmp/credentials.json'
+        ]
         
-        # Також перевіряємо локальний шлях
-        if not os.path.exists(creds_path):
-            creds_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials.json')
+        creds = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                logger.info(f"✅ Found credentials at: {path}")
+                creds = ServiceAccountCredentials.from_json_keyfile_name(path, scope)
+                break
         
-        if os.path.exists(creds_path):
-            logger.info(f"✅ Found credentials at: {creds_path}")
-            creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
-        else:
-            # Перевіряємо змінну середовища
+        # Якщо не знайшли файл, пробуємо змінну середовища
+        if not creds:
             creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
             if creds_json:
                 import json
-                creds_dict = json.loads(creds_json)
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-                logger.info("✅ Loaded credentials from environment variable")
-            else:
-                logger.error("❌ No credentials found")
-                return False
+                try:
+                    creds_dict = json.loads(creds_json)
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                    logger.info("✅ Loaded credentials from environment variable")
+                except Exception as e:
+                    logger.error(f"Failed to parse GOOGLE_CREDENTIALS_JSON: {e}")
+        
+        if not creds:
+            # Логуємо всі перевірені шляхи
+            logger.error("❌ No credentials found. Checked paths:")
+            for path in possible_paths:
+                logger.error(f"   - {path} (exists: {os.path.exists(path)})")
+            logger.error(f"   - GOOGLE_CREDENTIALS_JSON env: {'set' if os.getenv('GOOGLE_CREDENTIALS_JSON') else 'not set'}")
+            return None
         
         gc = gspread.authorize(creds)
         sheet = gc.open_by_key(SPREADSHEET_ID)
-        logger.info(f"✅ Connected to Google Sheet: {sheet.title}")
-        
-        # Виводимо всі аркуші
-        worksheets = sheet.worksheets()
-        logger.info(f"📋 Available worksheets: {[ws.title for ws in worksheets]}")
-        
-        return True
+        worksheet = sheet.get_worksheet(0)
+        logger.info(f"✅ Connected to: {sheet.title} / {worksheet.title}")
+        return worksheet
     except Exception as e:
         logger.error(f"❌ Connection error: {e}")
-        return False
+        import traceback
+        traceback.print_exc()
+        return None
 
 def load_workers_from_sheets():
     """Завантажити працівників з Google Sheets"""
-    global sheet
-    
-    if sheet is None:
-        if not init_google_sheets():
-            return []
+    worksheet = get_worksheet()
+    if not worksheet:
+        logger.error("No worksheet found")
+        return []
     
     try:
-        # Беремо перший аркуш
-        worksheet = sheet.get_worksheet(0)
-        logger.info(f"📄 Using worksheet: {worksheet.title}")
-        
-        # Отримуємо всі дані
         all_data = worksheet.get_all_values()
-        logger.info(f"📊 Total rows: {len(all_data)}")
+        logger.info(f"Total rows in sheet: {len(all_data)}")
         
-        if len(all_data) < 2:
-            logger.warning("No data rows found (need header + at least 1 data row)")
+        if len(all_data) <= 1:
+            logger.warning("Only header row found")
             return []
         
-        # Перший рядок - заголовки
-        headers = all_data[0]
-        logger.info(f"📋 Headers: {headers}")
-        
-        # Знаходимо індекси колонок (підтримуємо різні назви)
-        col_idx = {'workshop': 0, 'fullname': 1, 'ktu': 2}  # за замовчуванням
-        
-        for idx, header in enumerate(headers):
-            header_clean = str(header).strip().lower()
-            if 'цех' in header_clean or 'workshop' in header_clean:
-                col_idx['workshop'] = idx
-            elif 'піб' in header_clean or 'fullname' in header_clean or 'name' in header_clean or 'прізвище' in header_clean:
-                col_idx['fullname'] = idx
-            elif 'кту' in header_clean or 'ktu' in header_clean:
-                col_idx['ktu'] = idx
-        
-        logger.info(f"🔍 Column mapping: {col_idx}")
-        
         workers = []
-        for row_idx, row in enumerate(all_data[1:], start=2):
-            if len(row) <= max(col_idx.values()):
-                logger.warning(f"Row {row_idx} has insufficient columns: {len(row)}")
+        for i, row in enumerate(all_data[1:], start=2):
+            if len(row) < 3:
                 continue
             
-            workshop = str(row[col_idx['workshop']]).strip()
-            fullname = str(row[col_idx['fullname']]).strip()
+            workshop = str(row[0]).strip()
+            fullname = str(row[1]).strip()
             
-            # Пропускаємо порожні рядки
             if not workshop or not fullname:
                 continue
             
-            # Отримуємо КТУ
             try:
-                ktu_str = row[col_idx['ktu']].strip().replace(',', '.')
-                default_ktu = float(ktu_str) if ktu_str else 1.0
-            except (ValueError, IndexError):
-                default_ktu = 1.0
+                ktu = float(str(row[2]).replace(',', '.'))
+            except:
+                ktu = 1.0
             
-            # Перевіряємо чи цех правильний
             if workshop in ['DMT', 'Пакування']:
                 workers.append({
                     'fullname': fullname,
                     'workshop': workshop,
-                    'default_ktu': default_ktu
+                    'default_ktu': ktu
                 })
-                logger.info(f"✅ Row {row_idx}: {workshop} | {fullname} | KTU: {default_ktu}")
-            else:
-                logger.warning(f"Row {row_idx}: Unknown workshop '{workshop}'")
+                logger.info(f"Row {i}: {workshop} | {fullname}")
         
-        logger.info(f"✅ Total workers loaded: {len(workers)}")
+        logger.info(f"Loaded {len(workers)} workers")
         return workers
     except Exception as e:
-        logger.error(f"❌ Failed to load workers: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error loading: {e}")
         return []
 
 def save_attendance_to_sheets(worker_name, workshop, status, ktu, shift_hours):
-    """Зберігає відмітку в Google Sheets"""
-    global sheet
-    
-    if sheet is None:
-        if not init_google_sheets():
-            return False
+    """Зберегти відмітку"""
+    worksheet = get_worksheet()
+    if not worksheet:
+        return False
     
     try:
-        # Аркуш для результатів з датою
-        result_sheet_name = f"Результати_{datetime.now().strftime('%d.%m.%y')}"
+        sheet = worksheet.spreadsheet
+        result_name = f"Results_{datetime.now().strftime('%d.%m.%y')}"
         
         try:
-            worksheet = sheet.worksheet(result_sheet_name)
+            result_ws = sheet.worksheet(result_name)
         except:
-            worksheet = sheet.add_worksheet(title=result_sheet_name, rows=1000, cols=10)
-            worksheet.append_row(['Дата', 'Час', 'Цех', 'ПІБ', 'Статус', 'КТУ', 'Годин'])
-            logger.info(f"✅ Created worksheet: {result_sheet_name}")
+            result_ws = sheet.add_worksheet(title=result_name, rows=1000, cols=10)
+            result_ws.append_row(['Date', 'Time', 'Workshop', 'Name', 'Status', 'KTU', 'Hours'])
         
         now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H:%M:%S")
-        
         status_display = {
-            'present': '✅ Присутній',
-            'Вщ': '🏖️ Відпустка',
-            'Пр': '😷 Прогул',
-            'На': '📚 Навчання',
-            'Нз': '❌ Неявка'
+            'present': 'Present',
+            'Вщ': 'Vacation',
+            'Пр': 'Truancy',
+            'На': 'Study',
+            'Нз': 'Absence'
         }.get(status, status)
         
-        worksheet.append_row([
-            date_str, time_str, workshop, worker_name, status_display, ktu, shift_hours
+        result_ws.append_row([
+            now.strftime("%Y-%m-%d"),
+            now.strftime("%H:%M:%S"),
+            workshop,
+            worker_name,
+            status_display,
+            ktu,
+            shift_hours
         ])
         
-        logger.info(f"✅ Saved to Google Sheets: {worker_name} - {status_display}")
+        logger.info(f"Saved: {worker_name}")
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to save: {e}")
+        logger.error(f"Save error: {e}")
         return False
 
 def sync_workers_to_local_db():
-    """Синхронізує працівників з Google Sheets в локальну БД"""
+    """Синхронізація з БД"""
     from app.database import add_worker, get_all_workers_by_shop
     
-    workers_from_gs = load_workers_from_sheets()
-    if not workers_from_gs:
-        logger.warning("No workers loaded from Google Sheets")
+    workers = load_workers_from_sheets()
+    if not workers:
+        logger.warning("No workers from Google Sheets")
         return False
     
-    # Отримуємо поточних працівників
-    existing_workers = {}
+    existing = {}
     for workshop in ['DMT', 'Пакування']:
-        existing = get_all_workers_by_shop(workshop)
-        for w in existing:
-            key = f"{w['workshop']}|{w['fullname']}"
-            existing_workers[key] = True
+        for w in get_all_workers_by_shop(workshop):
+            existing[f"{w['workshop']}|{w['fullname']}"] = True
     
-    # Додаємо нових
     added = 0
-    for worker in workers_from_gs:
-        key = f"{worker['workshop']}|{worker['fullname']}"
-        if key not in existing_workers:
-            if add_worker(worker['fullname'], worker['workshop']):
+    for w in workers:
+        key = f"{w['workshop']}|{w['fullname']}"
+        if key not in existing:
+            if add_worker(w['fullname'], w['workshop']):
                 added += 1
-                logger.info(f"➕ Added new worker: {worker['fullname']} ({worker['workshop']})")
+                logger.info(f"Added: {w['fullname']}")
     
-    logger.info(f"✅ Synced {added} new workers from Google Sheets")
+    logger.info(f"Synced {added} new workers")
     return True
+
+def init_google_sheets():
+    """Ініціалізація"""
+    return get_worksheet() is not None
