@@ -95,7 +95,7 @@ async def set_shift(callback_query: types.CallbackQuery):
         parse_mode="Markdown"
     )
     
-    # Показуємо головне меню через 2 секунди
+    # Показуємо головне меню
     await callback_query.message.answer("Повертаюсь до головного меню...", reply_markup=main_keyboard())
 
 @dp.callback_query_handler(lambda c: c.data == "back_to_menu")
