@@ -35,71 +35,56 @@ class AttendanceMark(BaseModel):
 
 class OtherMark(BaseModel):
     worker_id: int
-    status: str  # Вщ, Пр, На, Нз
+    status: str
 
-# ========== МАРШРУТИ ДЛЯ МІНІ-ЗАСТОСУНКУ ==========
-
+# Маршрути
 @api_app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
-    """Головна сторінка міні-додатка для цеху"""
-    # Перевіряємо допустимі значення цеху
     if workshop not in ["DMT", "Пакування"]:
         workshop = "DMT"
-    
-    return templates.TemplateResponse(
-        "index.html", 
-        {"request": request, "workshop": workshop}
-    )
+    return templates.TemplateResponse("index.html", {"request": request, "workshop": workshop})
 
 @api_app.get("/api/workers/{workshop}")
 async def get_workers(workshop: str):
-    """Отримати список працівників цеху (не відмічених сьогодні)"""
     workers = get_workers_by_workshop(workshop)
     return {"workers": workers}
 
 @api_app.get("/api/all_workers/{workshop}")
 async def get_all_workers(workshop: str):
-    """Отримати ВСІХ працівників цеху"""
     workers = get_all_workers_by_workshop(workshop)
     return {"workers": workers}
 
 @api_app.post("/api/worker")
 async def create_worker(worker: WorkerCreate):
-    """Додати нового працівника"""
     success = add_worker(worker.fullname, worker.workshop)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to add worker")
-    return {"ok": True, "message": f"Worker {worker.fullname} added"}
+    return {"ok": True}
 
 @api_app.post("/api/mark_present")
 async def mark_present_route(mark: AttendanceMark):
-    """Відмітити присутність працівника"""
     success = mark_present(mark.worker_id, mark.shift_hours, mark.ktu)
-    if not success:
-        raise HTTPException(status_code=400, detail="Failed to mark present")
-    return {"ok": True, "message": "Worker marked as present"}
+    return {"ok": success}
 
 @api_app.post("/api/mark_other")
 async def mark_other_route(mark: OtherMark):
-    """Відмітити працівника з іншим статусом"""
     success = mark_other(mark.worker_id, mark.status)
-    if not success:
-        raise HTTPException(status_code=400, detail="Failed to mark other status")
-    return {"ok": True, "message": f"Worker marked as {mark.status}"}
+    return {"ok": success}
 
 @api_app.get("/api/report")
 async def get_report():
-    """Отримати звіт за сьогодні"""
     report = get_attendance_report()
     return report
 
 @api_app.get("/api/current_shift")
 async def current_shift():
-    """Отримати поточну зміну"""
     shift = get_current_shift()
     return {"shift_hours": shift}
 
-# ========== КОРЕНЕВІ МАРШРУТИ ==========
+@api_app.get("/api/stats")
+async def get_stats():
+    stats = get_today_statistics()
+    return stats
 
 @api_app.get("/")
 async def root():
