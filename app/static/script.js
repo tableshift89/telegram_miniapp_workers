@@ -8,6 +8,24 @@ let currentShift = 8;
 let workers = [];
 let pendingOther = {};
 
+// Список тестових працівників для різних цехів
+const testWorkers = {
+    "DMT": [
+        "Коваленко Андрій Миколайович",
+        "Шевченко Ольга Петрівна",
+        "Бондаренко Сергій Іванович",
+        "Мельник Тетяна Володимирівна",
+        "Лисенко Віктор Олексійович"
+    ],
+    "Пакування": [
+        "Гончаренко Ірина Василівна",
+        "Руденко Олег Михайлович",
+        "Ткаченко Наталія Сергіївна",
+        "Кравчук Дмитро Андрійович",
+        "Савченко Людмила Ігорівна"
+    ]
+};
+
 // Отримуємо поточну зміну
 async function loadCurrentShift() {
     try {
@@ -32,12 +50,52 @@ async function loadWorkers() {
     }
 }
 
+// Додавання тестових працівників
+async function addTestWorkers() {
+    const workersList = testWorkers[workshop] || testWorkers["DMT"];
+    let added = 0;
+    
+    tg.showPopup({
+        title: "Додавання працівників",
+        message: `Додати ${workersList.length} тестових працівників для цеху ${workshop}?`,
+        buttons: [
+            {id: "cancel", type: "cancel", text: "Скасувати"},
+            {id: "ok", type: "ok", text: "Додати"}
+        ]
+    }, async (buttonId) => {
+        if (buttonId === "ok") {
+            tg.showPopup({title: "Зачекайте", message: "Додаємо працівників...", buttons: []});
+            
+            for (const name of workersList) {
+                try {
+                    await fetch('/api/worker', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({fullname: name, workshop: workshop})
+                    });
+                    added++;
+                } catch(e) {
+                    console.error(`Failed to add ${name}:`, e);
+                }
+            }
+            
+            tg.showPopup({
+                title: "Готово!",
+                message: `Додано ${added} з ${workersList.length} працівників`,
+                buttons: [{type: "ok"}]
+            });
+            
+            await loadWorkers();
+        }
+    });
+}
+
 function renderWorkers() {
     const container = document.getElementById('workers-list');
     container.innerHTML = '';
     
     if (workers.length === 0) {
-        container.innerHTML = '<div class="empty-message">✅ Всі працівники відмічені на сьогодні!</div>';
+        container.innerHTML = '<div class="empty-message" style="text-align:center; padding:20px; color:#666;">✅ Всі працівники відмічені на сьогодні!<br>Натисніть "Додати тестових працівників" для початку</div>';
         return;
     }
     
@@ -183,6 +241,9 @@ document.getElementById('add-worker-btn').onclick = async () => {
         tg.showPopup({title: "Помилка", message: "Не вдалося додати", buttons: [{type: "ok"}]});
     }
 };
+
+// Кнопка для додавання тестових працівників
+document.getElementById('add-test-workers-btn').onclick = addTestWorkers;
 
 // Показати результат
 document.getElementById('show-result').onclick = async () => {
