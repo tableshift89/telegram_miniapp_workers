@@ -1,15 +1,30 @@
+import os
+import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
-from .database import SessionLocal, get_workers_by_workshop, add_worker, mark_present, mark_other, get_attendance_report, get_current_shift
+from datetime import datetime
+
+from .database import (
+    get_workers_by_workshop,
+    add_worker,
+    mark_present,
+    mark_other,
+    get_current_shift,
+    get_attendance_report,
+    get_all_workers_by_workshop
+)
 
 api_app = FastAPI()
-templates = Jinja2Templates(directory="app/templates")
-api_app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Налаштування шаблонів та статики
+templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
+api_app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
+# Моделі даних
 class WorkerCreate(BaseModel):
     fullname: str
     workshop: str
@@ -23,31 +38,100 @@ class OtherMark(BaseModel):
     worker_id: int
     status: str  # Вщ, Пр, На, Нз
 
+# Маршрути
+@api_app.get("/", response_class=HTMLResponse)
+async def root():
+    return """
+    <html>
+        <head><title>Worker Management System</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>✅ Worker Management System</h1>
+            <p>API is running. Use Telegram bot to access the mini-app.</p>
+            <p><a href="/health">Health Check</a></p>
+        </body>
+    </html>
+    """
+
+@api_app.get("/health")
+async def health_check():
+    """Перевірка стану сервера"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }
+
 @api_app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
-    return templates.TemplateResponse("index.html", {"request": request, "workshop": workshop})
+    """Головна сторінка міні-додатка для цеху"""
+    if workshop not in ["DMT", "Пакування"]:
+        workshop = "DMT"  # Значення за замовчуванням
+    
+    return templates.TemplateResponse(
+        "index.html", 
+        {"request": request, "workshop": workshop}
+    )
 
 @api_app.get("/api/workers/{workshop}")
 async def get_workers(workshop: str):
+    """Отримати список працівників цеху (не відмічених сьогодні)"""
     workers = get_workers_by_workshop(workshop)
-    return {"workers": [{"id": w.id, "fullname": w.fullname} for w in workers]}
+    return {"workers": workers}
+
+@api_app.get("/api/all_workers/{workshop}")
+async def get_all_workers(workshop: str):
+    """Отримати ВСІХ працівників цеху"""
+    workers = get_all_workers_by_workshop(workshop)
+    return {"workers": workers}
 
 @api_app.post("/api/worker")
 async def create_worker(worker: WorkerCreate):
-    add_worker(worker.fullname, worker.workshop)
-    return {"ok": True}
+    """Додати нового працівника"""
+    success = add_worker(worker.fullname, worker.workshop)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to add worker")
+    return {"ok": True, "message": f"Worker {worker.fullname} added"}
 
 @api_app.post("/api/mark_present")
 async def mark_present_route(mark: AttendanceMark):
-    shift = get_current_shift() or mark.shift_hours
-    mark_present(mark.worker_id, shift, mark.ktu)
-    return {"ok": True}
+    """Відмітити присутність працівника"""
+    success = mark_present(mark.worker_id, mark.shift_hours, mark.ktu)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to mark present")
+    return {"ok": True, "message": "Worker marked as present"}
 
 @api_app.post("/api/mark_other")
 async def mark_other_route(mark: OtherMark):
-    mark_other(mark.worker_id, mark.status)
-    return {"ok": True}
+    """Відмітити працівника з іншим статусом"""
+    success = mark_other(mark.worker_id, mark.status)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to mark other status")
+    return {"ok": True, "message": f"Worker marked as {mark.status}"}
 
 @api_app.get("/api/report")
-async def report():
-    return get_attendance_report()
+async def get_report():
+    """Отримати звіт за сьогодні"""
+    report = get_attendance_report()
+    return report
+
+@api_app.get("/api/current_shift")
+async def current_shift():
+    """Отримати поточну зміну"""
+    shift = get_current_shift()
+    return {"shift_hours": shift}
+
+@api_app.get("/api/stats")
+async def get_stats():
+    """Отримати статистику за сьогодні"""
+    from .database import get_today_statistics
+    stats = get_today_statistics()
+    return stats
+
+# CORS middleware для безпеки (опціонально)
+@api_app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
