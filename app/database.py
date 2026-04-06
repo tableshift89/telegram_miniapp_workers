@@ -90,7 +90,6 @@ def get_workers_by_workshop(workshop: str) -> List[Dict[str, Any]]:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Отримуємо працівників, які ще не відмічені сьогодні
         cursor.execute('''
             SELECT w.id, w.fullname, w.workshop 
             FROM workers w
@@ -132,14 +131,12 @@ def mark_present(worker_id: int, shift_hours: int, ktu: float) -> bool:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Перевіряємо, чи не відмічений вже сьогодні
         cursor.execute('''
             SELECT id FROM attendance 
             WHERE worker_id = ? AND date = CURRENT_DATE
         ''', (worker_id,))
         
         if cursor.fetchone():
-            logger.warning(f"Worker {worker_id} already marked today")
             conn.close()
             return False
         
@@ -150,7 +147,7 @@ def mark_present(worker_id: int, shift_hours: int, ktu: float) -> bool:
         
         conn.commit()
         conn.close()
-        logger.info(f"Worker {worker_id} marked as present with KTU={ktu}, shift={shift_hours}")
+        logger.info(f"Worker {worker_id} marked as present with KTU={ktu}")
         return True
     except Exception as e:
         logger.error(f"Error marking present: {e}")
@@ -162,21 +159,17 @@ def mark_other(worker_id: int, status: str) -> bool:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Перевіряємо, чи не відмічений вже сьогодні
         cursor.execute('''
             SELECT id FROM attendance 
             WHERE worker_id = ? AND date = CURRENT_DATE
         ''', (worker_id,))
         
         if cursor.fetchone():
-            logger.warning(f"Worker {worker_id} already marked today")
             conn.close()
             return False
         
-        # Валідація статусу
         valid_statuses = ['Вщ', 'Пр', 'На', 'Нз']
         if status not in valid_statuses:
-            logger.error(f"Invalid status: {status}")
             conn.close()
             return False
         
@@ -256,15 +249,12 @@ def get_today_statistics() -> Dict[str, Any]:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Загальна кількість відмічених
         cursor.execute("SELECT COUNT(*) FROM attendance WHERE date = CURRENT_DATE")
         total_marked = cursor.fetchone()[0]
         
-        # Кількість присутніх
         cursor.execute("SELECT COUNT(*) FROM attendance WHERE date = CURRENT_DATE AND status = 'present'")
         present_count = cursor.fetchone()[0]
         
-        # Статистика по цехах
         cursor.execute('''
             SELECT 
                 w.workshop,
@@ -277,7 +267,6 @@ def get_today_statistics() -> Dict[str, Any]:
         ''')
         
         workshops_stats = [dict(row) for row in cursor.fetchall()]
-        
         conn.close()
         
         return {
@@ -289,62 +278,3 @@ def get_today_statistics() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         return {}
-
-def delete_worker(worker_id: int) -> bool:
-    """Видалити працівника (тільки якщо немає відміток)"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Перевіряємо, чи є відмітки
-        cursor.execute("SELECT COUNT(*) FROM attendance WHERE worker_id = ?", (worker_id,))
-        if cursor.fetchone()[0] > 0:
-            logger.warning(f"Cannot delete worker {worker_id} - has attendance records")
-            conn.close()
-            return False
-        
-        cursor.execute("DELETE FROM workers WHERE id = ?", (worker_id,))
-        conn.commit()
-        conn.close()
-        logger.info(f"Worker {worker_id} deleted")
-        return True
-    except Exception as e:
-        logger.error(f"Error deleting worker: {e}")
-        return False
-
-def update_worker_ktu(worker_id: int, new_ktu: float, date: str = None) -> bool:
-    """Оновити КТУ працівника за певну дату"""
-    try:
-        if date is None:
-            date = datetime.now().strftime("%Y-%m-%d")
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE attendance 
-            SET ktu = ? 
-            WHERE worker_id = ? AND date = ? AND status = 'present'
-        ''', (new_ktu, worker_id, date))
-        
-        conn.commit()
-        conn.close()
-        logger.info(f"KTU updated for worker {worker_id} to {new_ktu}")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating KTU: {e}")
-        return False
-
-# Експортуємо основні функції
-__all__ = [
-    'add_worker',
-    'get_workers_by_workshop',
-    'get_all_workers_by_workshop',
-    'mark_present',
-    'mark_other',
-    'get_current_shift',
-    'set_current_shift_db',
-    'get_attendance_report',
-    'get_today_statistics',
-    'delete_worker',
-    'update_worker_ktu'
-]
