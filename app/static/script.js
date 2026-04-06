@@ -8,25 +8,24 @@ let currentShift = 8;
 let workers = [];
 let pendingOther = {};
 
-// Список тестових працівників для різних цехів
+// Список тестових працівників
 const testWorkers = {
     "DMT": [
-        "Коваленко Андрій Миколайович",
-        "Шевченко Ольга Петрівна",
-        "Бондаренко Сергій Іванович",
-        "Мельник Тетяна Володимирівна",
-        "Лисенко Віктор Олексійович"
+        "Коваленко Андрій Миколайович", "Шевченко Ольга Петрівна",
+        "Бондаренко Сергій Іванович", "Мельник Тетяна Володимирівна",
+        "Лисенко Віктор Олексійович", "Гончаренко Ірина Василівна",
+        "Руденко Олег Михайлович", "Ткаченко Наталія Сергіївна",
+        "Кравчук Дмитро Андрійович", "Савченко Людмила Ігорівна"
     ],
     "Пакування": [
-        "Гончаренко Ірина Василівна",
-        "Руденко Олег Михайлович",
-        "Ткаченко Наталія Сергіївна",
-        "Кравчук Дмитро Андрійович",
-        "Савченко Людмила Ігорівна"
+        "Бойко Андрій Володимирович", "Марченко Оксана Іванівна",
+        "Колесник Володимир Петрович", "Литвиненко Марина Сергіївна",
+        "Федоренко Юрій Олександрович", "Павленко Валентина Дмитрівна",
+        "Ткачук Петро Васильович", "Кузьменко Катерина Олегівна",
+        "Олійник Олександр Вікторович", "Мороз Галина Андріївна"
     ]
 };
 
-// Отримуємо поточну зміну
 async function loadCurrentShift() {
     try {
         const res = await fetch('/api/current_shift');
@@ -38,7 +37,6 @@ async function loadCurrentShift() {
     }
 }
 
-// Завантажуємо працівників
 async function loadWorkers() {
     try {
         const res = await fetch(`/api/workers/${workshop}`);
@@ -50,44 +48,20 @@ async function loadWorkers() {
     }
 }
 
-// Додавання тестових працівників
 async function addTestWorkers() {
     const workersList = testWorkers[workshop] || testWorkers["DMT"];
-    let added = 0;
-    
-    tg.showPopup({
-        title: "Додавання працівників",
-        message: `Додати ${workersList.length} тестових працівників для цеху ${workshop}?`,
-        buttons: [
-            {id: "cancel", type: "cancel", text: "Скасувати"},
-            {id: "ok", type: "ok", text: "Додати"}
-        ]
-    }, async (buttonId) => {
-        if (buttonId === "ok") {
-            tg.showPopup({title: "Зачекайте", message: "Додаємо працівників...", buttons: []});
-            
-            for (const name of workersList) {
-                try {
-                    await fetch('/api/worker', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({fullname: name, workshop: workshop})
-                    });
-                    added++;
-                } catch(e) {
-                    console.error(`Failed to add ${name}:`, e);
-                }
-            }
-            
-            tg.showPopup({
-                title: "Готово!",
-                message: `Додано ${added} з ${workersList.length} працівників`,
-                buttons: [{type: "ok"}]
+    for (const name of workersList) {
+        try {
+            await fetch('/api/worker', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({fullname: name, workshop: workshop})
             });
-            
-            await loadWorkers();
+        } catch(e) {
+            console.error(`Failed to add ${name}:`, e);
         }
-    });
+    }
+    await loadWorkers();
 }
 
 function renderWorkers() {
@@ -95,7 +69,7 @@ function renderWorkers() {
     container.innerHTML = '';
     
     if (workers.length === 0) {
-        container.innerHTML = '<div class="empty-message" style="text-align:center; padding:20px; color:#666;">✅ Всі працівники відмічені на сьогодні!<br>Натисніть "Додати тестових працівників" для початку</div>';
+        container.innerHTML = '<div class="empty-message" style="text-align:center; padding:20px; color:#666;">✅ Всі працівники відмічені на сьогодні!</div>';
         return;
     }
     
@@ -120,7 +94,7 @@ function renderWorkers() {
         container.appendChild(card);
     });
     
-    // Обробники для кнопок "Присутній"
+    // Обробник для кнопки "Присутній" - БЕЗ ПОВІДОМЛЕНЬ
     document.querySelectorAll('.present-btn').forEach(btn => {
         btn.onclick = async (e) => {
             e.stopPropagation();
@@ -132,25 +106,18 @@ function renderWorkers() {
                 await fetch('/api/mark_present', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        worker_id: id, 
-                        ktu: ktu, 
-                        shift_hours: currentShift
-                    })
+                    body: JSON.stringify({worker_id: id, ktu: ktu, shift_hours: currentShift})
                 });
-                // Видаляємо картку
                 const card = document.querySelector(`.worker-card[data-id="${id}"]`);
                 if (card) card.remove();
                 workers = workers.filter(w => w.id !== id);
-                tg.showPopup({title: "Успішно", message: "Працівника відмічено!", buttons: [{type: "ok"}]});
             } catch(e) {
                 console.error('Error marking present:', e);
-                tg.showPopup({title: "Помилка", message: "Не вдалося відмітити", buttons: [{type: "ok"}]});
             }
         };
     });
     
-    // Обробники для кнопок "Інше"
+    // Обробник для кнопки "Інше"
     document.querySelectorAll('.other-btn').forEach(btn => {
         btn.onclick = () => {
             const id = parseInt(btn.dataset.id);
@@ -164,15 +131,18 @@ let currentOtherWorkerId = null;
 function showOtherOptions(workerId) {
     currentOtherWorkerId = workerId;
     const worker = workers.find(w => w.id === workerId);
+    
+    // Варіанти невиходу: Вщ, Пр, На, Нз
     const options = [
-        {code: 'Вщ', name: '🏖️ Відпустка', emoji: '🏖️'},
-        {code: 'Пр', name: '😷 Прогул', emoji: '😷'},
-        {code: 'На', name: '📚 Навчання', emoji: '📚'},
-        {code: 'Нз', name: '❌ Неявка', emoji: '❌'}
+        {code: 'Вщ', name: 'Відпустка', emoji: '🏖️'},
+        {code: 'Пр', name: 'Прогул', emoji: '😷'},
+        {code: 'На', name: 'Навчання', emoji: '📚'},
+        {code: 'Нз', name: 'Неявка', emoji: '❌'}
     ];
     
     const container = document.getElementById('other-buttons');
     container.innerHTML = '';
+    
     options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'other-option-btn';
@@ -186,11 +156,6 @@ function showOtherOptions(workerId) {
         btn.style.cursor = 'pointer';
         btn.onclick = () => {
             pendingOther[workerId] = opt.code;
-            tg.showPopup({
-                title: "Вибрано",
-                message: `Для ${worker?.fullname} вибрано: ${opt.name}`,
-                buttons: [{type: "ok"}]
-            });
             document.getElementById('other-controls').style.display = 'block';
         };
         container.appendChild(btn);
@@ -199,6 +164,7 @@ function showOtherOptions(workerId) {
     document.getElementById('other-controls').style.display = 'block';
 }
 
+// Кнопка "Надіслати" для невиходів - БЕЗ ПОВІДОМЛЕНЬ
 document.getElementById('submit-other').onclick = async () => {
     for (const [id, status] of Object.entries(pendingOther)) {
         try {
@@ -217,16 +183,13 @@ document.getElementById('submit-other').onclick = async () => {
     pendingOther = {};
     document.getElementById('other-controls').style.display = 'none';
     currentOtherWorkerId = null;
-    tg.showPopup({title: "Успішно", message: "Всі невиходи відправлено!", buttons: [{type: "ok"}]});
 };
 
-// Додавання нового працівника
+// Додавання нового працівника - БЕЗ ПОВІДОМЛЕНЬ
 document.getElementById('add-worker-btn').onclick = async () => {
     const name = document.getElementById('new-worker-name').value.trim();
-    if (!name) {
-        tg.showPopup({title: "Помилка", message: "Введіть ПІБ працівника", buttons: [{type: "ok"}]});
-        return;
-    }
+    if (!name) return;
+    
     try {
         await fetch('/api/worker', {
             method: 'POST',
@@ -235,28 +198,30 @@ document.getElementById('add-worker-btn').onclick = async () => {
         });
         document.getElementById('new-worker-name').value = '';
         await loadWorkers();
-        tg.showPopup({title: "Успішно", message: "Працівника додано!", buttons: [{type: "ok"}]});
     } catch(e) {
         console.error('Error adding worker:', e);
-        tg.showPopup({title: "Помилка", message: "Не вдалося додати", buttons: [{type: "ok"}]});
     }
 };
 
-// Кнопка для додавання тестових працівників
-document.getElementById('add-test-workers-btn').onclick = addTestWorkers;
+// Кнопка додавання тестових працівників
+const testBtn = document.getElementById('add-test-workers-btn');
+if (testBtn) {
+    testBtn.onclick = addTestWorkers;
+}
 
-// Показати результат
+// Кнопка "Показати результат"
 document.getElementById('show-result').onclick = async () => {
     try {
         const res = await fetch('/api/report');
         const data = await res.json();
         
         if (data.length === 0) {
-            tg.showPopup({title: "Інформація", message: "Немає даних про відмічання за сьогодні", buttons: [{type: "ok"}]});
+            document.getElementById('result-table').innerHTML = '<p>Немає даних за сьогодні</p>';
+            document.getElementById('result-table').style.display = 'block';
             return;
         }
         
-        let html = '<h3>📋 Результат відмічання за сьогодні</h3>';
+        let html = '<h3>📋 Результат відмічання</h3>';
         html += '<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">';
         html += '<tr style="background:#f0f0f0;"><th>Працівник</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
         
@@ -280,11 +245,8 @@ document.getElementById('show-result').onclick = async () => {
         
         document.getElementById('result-table').innerHTML = html;
         document.getElementById('result-table').style.display = 'block';
-        
-        tg.showPopup({title: "Інформація", message: `Всього відмічено: ${data.length} працівників`, buttons: [{type: "ok"}]});
     } catch(e) {
         console.error('Error loading report:', e);
-        tg.showPopup({title: "Помилка", message: "Не вдалося завантажити звіт", buttons: [{type: "ok"}]});
     }
 };
 
