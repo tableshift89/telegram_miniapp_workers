@@ -7,26 +7,21 @@ from dotenv import load_dotenv
 from datetime import datetime
 import json
 
-# Завантаження змінних середовища
 load_dotenv()
 
-# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")
 
-# Створюємо екземпляри бота та диспетчера
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 dp.middleware.setup(LoggingMiddleware())
 
-# Глобальна змінна для збереження вибраної зміни
 current_shift = 8
 
 def main_keyboard():
-    """Головне меню бота"""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🏭 Цех ДМТ", web_app=WebAppInfo(url=f"{APP_URL}/workshop/DMT"))],
@@ -41,7 +36,6 @@ def main_keyboard():
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
-    """Обробник команди /start"""
     welcome_text = """
 🌟 *Вітаю в боті обліку робітників та рецептур!*
 
@@ -53,13 +47,12 @@ async def cmd_start(message: types.Message):
 • 📊 **Результат** - перегляд звіту за сьогодні
 
 *Коефіцієнт КТУ:* 0,9 | 1 | 1,1 | 1,2 | 1,3
-*Причини невиходу:* Вщ (відпустка), Пр (прогул), На (навчання), Нз (неявка)
+*Причини невиходу:* Вщ (вихідний), Пр (прогул), На (відпустка за свій рахунок), Нз (не з'явився)
     """
     await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard())
 
 @dp.message_handler(lambda msg: msg.text == "☀️ Зміна")
 async def select_shift(message: types.Message):
-    """Вибір зміни (годин роботи)"""
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🕗 8 годин", callback_data="shift_8")],
@@ -73,7 +66,6 @@ async def select_shift(message: types.Message):
 
 @dp.callback_query_handler(lambda c: c.data.startswith("shift_"))
 async def set_shift(callback_query: types.CallbackQuery):
-    """Встановлення вибраної зміни"""
     global current_shift
     shift = int(callback_query.data.split("_")[1])
     current_shift = shift
@@ -90,28 +82,22 @@ async def set_shift(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == "back_to_menu")
 async def back_to_menu(callback_query: types.CallbackQuery):
-    """Повернення до головного меню"""
     await callback_query.message.delete()
     await callback_query.message.answer("Головне меню:", reply_markup=main_keyboard())
     await callback_query.answer()
 
 @dp.message_handler(lambda msg: msg.text == "📊 Результат")
 async def show_result(message: types.Message):
-    """Показати результат відмічання за сьогодні"""
     from app.database import get_attendance_report
     
     report = get_attendance_report()
     
     if not report:
-        await message.answer(
-            "📭 *Немає даних про відмічання за сьогодні*",
-            parse_mode="Markdown"
-        )
+        await message.answer("📭 *Немає даних про відмічання за сьогодні*", parse_mode="Markdown")
         return
     
     today = datetime.now().strftime("%d.%m.%Y")
-    text = f"📊 *ЗВІТ ЗА {today}*\n"
-    text += "─" * 20 + "\n\n"
+    text = f"📊 *ЗВІТ ЗА {today}*\n" + "─" * 20 + "\n\n"
     
     present = [r for r in report if r['status'] == 'present']
     vacation = [r for r in report if r['status'] == 'Вщ']
@@ -126,7 +112,7 @@ async def show_result(message: types.Message):
         text += "\n"
     
     if vacation:
-        text += "🏖️ *ВІДПУСТКА (Вщ):*\n"
+        text += "🏖️ *ВИХІДНІ (Вщ):*\n"
         for v in vacation:
             text += f"  • {v['fullname']}\n"
         text += "\n"
@@ -138,13 +124,13 @@ async def show_result(message: types.Message):
         text += "\n"
     
     if study:
-        text += "📚 *НАВЧАННЯ (На):*\n"
+        text += "📚 *ВІДПУСТКА ЗА СВІЙ РАХУНОК (На):*\n"
         for st in study:
             text += f"  • {st['fullname']}\n"
         text += "\n"
     
     if no_show:
-        text += "❌ *НЕЯВКА (Нз):*\n"
+        text += "❌ *НЕ З'ЯВИВСЯ (Нз):*\n"
         for ns in no_show:
             text += f"  • {ns['fullname']}\n"
         text += "\n"
@@ -158,7 +144,6 @@ async def show_result(message: types.Message):
 
 @dp.message_handler(lambda msg: msg.text == "❓ Допомога")
 async def help_command(message: types.Message):
-    """Допомога"""
     help_text = """
 ❓ *Довідка користувача*
 
@@ -174,19 +159,18 @@ async def help_command(message: types.Message):
 • Натисніть "Замовити в склад" для відправки замовлення
 
 *Коефіцієнт КТУ:*
-0,9 - мінімальний | 1 - базовий | 1,1 | 1,2 | 1,3 - максимальний
+0,9 | 1 | 1,1 | 1,2 | 1,3
 
 *Причини невиходу:*
-• Вщ - щорічна відпустка
-• Пр - прогул без поважної причини
-• На - навчання/підвищення кваліфікації
-• Нз - неявка з поважної причини
+• Вщ - Вихідний
+• Пр - Прогул
+• На - Відпустка за власний рахунок
+• Нз - Не з'явився (-лась)
     """
     await message.answer(help_text, parse_mode="Markdown")
 
 @dp.message_handler(content_types=['web_app_data'])
 async def handle_web_app_data(message: types.Message):
-    """Обробник даних з Web App (замовлення)"""
     data = message.web_app_data.data
     
     try:
@@ -204,13 +188,11 @@ async def handle_web_app_data(message: types.Message):
 
 @dp.message_handler()
 async def echo(message: types.Message):
-    """Обробник невідомих повідомлень"""
     await message.answer(
         "🙏 Будь ласка, використовуйте кнопки меню для навігації.",
         reply_markup=main_keyboard()
     )
 
-# Встановлення контексту
 try:
     Bot.set_current(bot)
     bot._current = bot
