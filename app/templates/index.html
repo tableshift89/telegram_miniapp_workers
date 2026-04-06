@@ -6,12 +6,43 @@
     <title>Облік цеху</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        .absent-mode-active {
+            background: #ff9800;
+            color: white;
+        }
+        .absent-select {
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid #ff9800;
+            background: #fff3e0;
+            font-weight: 500;
+        }
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .mode-active {
+            background: #ff9800;
+            color: white;
+        }
+        .mode-normal {
+            background: #10b981;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🏭 Цех <span id="workshop-name"></span></h1>
-            <div class="shift-info">⚙️ Зміна: <span id="shift-hours">8</span> год</div>
+            <div class="shift-info">
+                ⚙️ Зміна: <span id="shift-hours">8</span> год
+                <span id="mode-badge" class="mode-badge mode-normal">✅ Режим присутності</span>
+            </div>
         </div>
 
         <div class="add-worker">
@@ -19,17 +50,9 @@
             <button id="add-worker-btn">➕ Додати</button>
         </div>
 
-        <!-- Нова кнопка для додавання тестових працівників -->
-        <button id="add-test-workers-btn" style="width:100%; margin-bottom:15px; background:#764ba2; color:white; border:none; border-radius:28px; padding:10px; cursor:pointer;">🎲 Додати тестових працівників (10)</button>
-
         <div class="workers-list" id="workers-list"></div>
 
-        <div class="other-controls" style="display: none;">
-            <h3>Вибір причини невиходу</h3>
-            <div id="other-buttons"></div>
-            <button id="submit-other">📤 Надіслати</button>
-        </div>
-
+        <button id="absent-mode-btn" style="width:100%; margin:15px 0; background:#ff9800; color:white; border:none; border-radius:28px; padding:14px; font-size:16px; font-weight:bold; cursor:pointer;">📋 Проставити відсутніх</button>
         <button id="show-result">📊 Показати результат</button>
         <div id="result-table" style="display: none;"></div>
     </div>
