@@ -3,7 +3,6 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from app.api import api_app
-from app.bot import dp, bot
 from app.database import init_database
 
 logging.basicConfig(level=logging.INFO)
@@ -15,24 +14,24 @@ app = FastAPI(title="Telegram Worker Bot", description="Worker attendance system
 # Монтуємо API міні-додатка
 app.mount("/", api_app)
 
-WEBHOOK_PATH = f"/webhook/{os.getenv('BOT_TOKEN', 'test_token')}"
-WEBHOOK_URL = os.getenv("APP_URL", "http://localhost:8000") + WEBHOOK_PATH
+# Отримуємо токен зі змінних середовища
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+
+# Імпортуємо бота ТІЛЬКИ ПІСЛЯ визначення маршрутів
+from app.bot import dp, bot
 
 @app.on_event("startup")
 async def on_startup():
     """Ініціалізація при запуску"""
-    # Ініціалізуємо базу даних
     init_database()
     logger.info("Database initialized")
     
-    # Встановлюємо webhook для Telegram бота (для aiogram 2.x)
+    # Встановлюємо webhook
+    webhook_url = os.getenv("APP_URL") + WEBHOOK_PATH
     try:
-        webhook_info = await bot.get_webhook_info()
-        if webhook_info.url != WEBHOOK_URL:
-            await bot.set_webhook(WEBHOOK_URL)
-            logger.info(f"Webhook set to {WEBHOOK_URL}")
-        else:
-            logger.info("Webhook already configured")
+        await bot.set_webhook(webhook_url)
+        logger.info(f"Webhook set to {webhook_url}")
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
 
@@ -40,6 +39,7 @@ async def on_startup():
 async def on_shutdown():
     """Очищення при завершенні"""
     try:
+        await bot.delete_webhook()
         await bot.close()
         logger.info("Bot session closed")
     except Exception as e:
@@ -50,7 +50,6 @@ async def telegram_webhook(request: Request):
     """Обробник webhook від Telegram"""
     try:
         update_data = await request.json()
-        # Для aiogram 2.x використовуємо process_update
         from aiogram.types import Update
         update = Update(**update_data)
         await dp.process_update(update)
@@ -64,8 +63,8 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "webhook_url": WEBHOOK_URL,
-        "bot_token_configured": bool(os.getenv("BOT_TOKEN"))
+        "webhook_path": WEBHOOK_PATH,
+        "bot_token_configured": bool(BOT_TOKEN)
     }
 
 @app.get("/")
@@ -77,8 +76,3 @@ async def root():
         "health": "/health",
         "webhook_path": WEBHOOK_PATH
     }
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
