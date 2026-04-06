@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>📝 Калькулятор рецептури</title>
+    <title>🍗 Калькулятор рецептури курятини</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -31,8 +31,15 @@
         h1 {
             text-align: center;
             color: #333;
-            margin-bottom: 24px;
+            margin-bottom: 8px;
             font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 24px;
         }
 
         .form-group {
@@ -67,6 +74,16 @@
             margin: 20px 0;
         }
 
+        .result-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 16px;
+            text-align: center;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
         .ingredient {
             display: flex;
             justify-content: space-between;
@@ -83,6 +100,12 @@
             color: #333;
         }
 
+        .ingredient-percent {
+            color: #888;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
         .ingredient-amount {
             font-weight: 700;
             color: #667eea;
@@ -96,6 +119,15 @@
             justify-content: space-between;
             font-weight: 700;
             font-size: 18px;
+        }
+
+        .info-note {
+            background: #fff3cd;
+            border-radius: 16px;
+            padding: 12px;
+            margin: 16px 0;
+            font-size: 12px;
+            color: #856404;
         }
 
         button {
@@ -125,16 +157,16 @@
 </head>
 <body>
     <div class="container">
-        <h1>📝 Калькулятор рецептури</h1>
+        <h1>🍗 Калькулятор рецептури</h1>
+        <div class="subtitle">Сире запаковане м'ясо курятини</div>
 
         <div class="form-group">
-            <label>🍽️ Виберіть продукт:</label>
+            <label>📦 Виберіть артикул продукту:</label>
             <select id="product-select">
-                <option value="Борщ">🥣 Борщ</option>
-                <option value="Пельмені">🥟 Пельмені</option>
-                <option value="Вареники">🥟 Вареники з картоплею</option>
-                <option value="Суп-пюре">🥣 Суп-пюре грибний</option>
-                <option value="Каша гречана">🍚 Каша гречана з м'ясом</option>
+                <option value="fresh_1110">🥩 Фреш 1110 (Філе куряче)</option>
+                <option value="fresh_1120">🍗 Фреш 1120 (Стегно куряче)</option>
+                <option value="fresh_1130">🍖 Фреш 1130 (Крильце куряче)</option>
+                <option value="fresh_1140">🍗 Фреш 1140 (Гомілка куряча)</option>
             </select>
         </div>
 
@@ -144,12 +176,13 @@
         </div>
 
         <div class="result-card" id="result" style="display: none;">
-            <h3 style="margin-bottom: 16px; color: #333;">📋 Склад рецепту:</h3>
+            <div class="result-title" id="product-title"></div>
             <div id="ingredients-list"></div>
             <div class="total">
                 <span>📦 Загальна вага:</span>
                 <span id="total-weight">0 кг</span>
             </div>
+            <div class="info-note" id="info-note"></div>
         </div>
 
         <button id="order-btn">📦 Замовити в склад</button>
@@ -162,59 +195,61 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // База даних інгредієнтів для різних продуктів
+        // Рецепти для курятини (4 види)
         const recipes = {
-            "Борщ": {
-                base: "Буряк",
+            "fresh_1110": {
+                name: "🥩 Фреш 1110 (Філе куряче)",
+                article: "Фреш 1110",
+                base: { name: "Велике філе куряче", percent: 80 },
                 ingredients: [
-                    { name: "Капуста", percent: 80 },
-                    { name: "Картопля", percent: 10 },
-                    { name: "Морква", percent: 10 }
-                ]
+                    { name: "Мале філе куряче", percent: 10 },
+                    { name: "Подрібнене філе", percent: 10 }
+                ],
+                note: "Для фаршу дрібного помелу"
             },
-            "Пельмені": {
-                base: "Тісто",
+            "fresh_1120": {
+                name: "🍗 Фреш 1120 (Стегно куряче)",
+                article: "Фреш 1120",
+                base: { name: "Стегно без кістки", percent: 80 },
                 ingredients: [
-                    { name: "Свинина", percent: 80 },
-                    { name: "Цибуля", percent: 10 },
-                    { name: "Спеції", percent: 10 }
-                ]
+                    { name: "Стегно з кісткою", percent: 10 },
+                    { name: "Обрізки стегна", percent: 10 }
+                ],
+                note: "Для фаршу середнього помелу"
             },
-            "Вареники": {
-                base: "Тісто",
+            "fresh_1130": {
+                name: "🍖 Фреш 1130 (Крильце куряче)",
+                article: "Фреш 1130",
+                base: { name: "Крильце без кістки", percent: 80 },
                 ingredients: [
-                    { name: "Картопля", percent: 80 },
-                    { name: "Цибуля", percent: 10 },
-                    { name: "Спеції", percent: 10 }
-                ]
+                    { name: "Крильце з кісткою", percent: 10 },
+                    { name: "Обрізки крильця", percent: 10 }
+                ],
+                note: "Для фаршу крупного помелу"
             },
-            "Суп-пюре": {
-                base: "Гриби",
+            "fresh_1140": {
+                name: "🍗 Фреш 1140 (Гомілка куряча)",
+                article: "Фреш 1140",
+                base: { name: "Гомілка без кістки", percent: 80 },
                 ingredients: [
-                    { name: "Вершки", percent: 80 },
-                    { name: "Картопля", percent: 10 },
-                    { name: "Спеції", percent: 10 }
-                ]
-            },
-            "Каша гречана": {
-                base: "Гречка",
-                ingredients: [
-                    { name: "Свинина", percent: 80 },
-                    { name: "Цибуля", percent: 10 },
-                    { name: "Морква", percent: 10 }
-                ]
+                    { name: "Гомілка з кісткою", percent: 10 },
+                    { name: "Обрізки гомілки", percent: 10 }
+                ],
+                note: "Для фаршу ніжного помелу"
             }
         };
 
         const productSelect = document.getElementById('product-select');
         const weightInput = document.getElementById('weight');
         const resultDiv = document.getElementById('result');
+        const productTitle = document.getElementById('product-title');
         const ingredientsList = document.getElementById('ingredients-list');
         const totalWeightSpan = document.getElementById('total-weight');
+        const infoNote = document.getElementById('info-note');
         const orderBtn = document.getElementById('order-btn');
 
         function calculateRecipe() {
-            const product = productSelect.value;
+            const productKey = productSelect.value;
             const weight = parseFloat(weightInput.value);
             
             if (!weight || weight <= 0) {
@@ -222,20 +257,23 @@
                 return;
             }
 
-            const recipe = recipes[product];
+            const recipe = recipes[productKey];
             if (!recipe) return;
 
             // Розрахунок кількості кожного інгредієнта
-            const baseAmount = weight * 0.8;
+            const baseAmount = weight * (recipe.base.percent / 100);
             const ingredientAmounts = recipe.ingredients.map(ing => ({
                 name: ing.name,
+                percent: ing.percent,
                 amount: weight * (ing.percent / 100)
             }));
 
             // Відображення результатів
+            productTitle.innerHTML = `📋 ${recipe.name}`;
+            
             let html = `
                 <div class="ingredient">
-                    <span class="ingredient-name">🍳 ${recipe.base} (основа):</span>
+                    <span class="ingredient-name">🍗 ${recipe.base.name} <span class="ingredient-percent">(${recipe.base.percent}%)</span>:</span>
                     <span class="ingredient-amount">${baseAmount.toFixed(2)} кг</span>
                 </div>
             `;
@@ -243,7 +281,7 @@
             ingredientAmounts.forEach(ing => {
                 html += `
                     <div class="ingredient">
-                        <span class="ingredient-name">➕ ${ing.name}:</span>
+                        <span class="ingredient-name">➕ ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
                         <span class="ingredient-amount">${ing.amount.toFixed(2)} кг</span>
                     </div>
                 `;
@@ -251,6 +289,7 @@
 
             ingredientsList.innerHTML = html;
             totalWeightSpan.innerText = `${weight.toFixed(2)} кг`;
+            infoNote.innerHTML = `📌 ${recipe.note} | Артикул: ${recipe.article}`;
             resultDiv.style.display = 'block';
         }
 
@@ -258,7 +297,7 @@
         weightInput.addEventListener('input', calculateRecipe);
 
         orderBtn.addEventListener('click', async () => {
-            const product = productSelect.value;
+            const productKey = productSelect.value;
             const weight = parseFloat(weightInput.value);
             
             if (!weight || weight <= 0) {
@@ -270,22 +309,25 @@
                 return;
             }
 
-            const recipe = recipes[product];
-            const baseAmount = weight * 0.8;
+            const recipe = recipes[productKey];
+            const baseAmount = weight * (recipe.base.percent / 100);
             const ingredientAmounts = recipe.ingredients.map(ing => ({
                 name: ing.name,
+                percent: ing.percent,
                 amount: weight * (ing.percent / 100)
             }));
 
-            // Формуємо повідомлення для відправки в Telegram
-            let message = `📦 *НОВЕ ЗАМОВЛЕННЯ*\n\n`;
-            message += `🍽️ *Продукт:* ${product}\n`;
+            // Формуємо детальне повідомлення
+            let message = `📦 *НОВЕ ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
+            message += `🏷️ *Артикул:* ${recipe.article}\n`;
+            message += `🍗 *Продукт:* ${recipe.name}\n`;
             message += `⚖️ *Загальна вага:* ${weight.toFixed(2)} кг\n\n`;
-            message += `📋 *Потрібні інгредієнти:*\n`;
-            message += `• ${recipe.base}: ${baseAmount.toFixed(2)} кг (80%)\n`;
+            message += `📋 *Склад рецептури:*\n`;
+            message += `• ${recipe.base.name} (${recipe.base.percent}%): ${baseAmount.toFixed(2)} кг\n`;
             ingredientAmounts.forEach(ing => {
-                message += `• ${ing.name}: ${ing.amount.toFixed(2)} кг\n`;
+                message += `• ${ing.name} (${ing.percent}%): ${ing.amount.toFixed(2)} кг\n`;
             });
+            message += `\n📌 *Примітка:* ${recipe.note}`;
 
             // Відправка даних в Telegram
             try {
@@ -293,12 +335,13 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        product: product,
+                        product: recipe.article,
+                        product_name: recipe.name,
                         weight: weight,
                         recipe: {
-                            base: recipe.base,
-                            base_amount: baseAmount,
-                            ingredients: ingredientAmounts
+                            base: { name: recipe.base.name, percent: recipe.base.percent, amount: baseAmount },
+                            ingredients: ingredientAmounts,
+                            note: recipe.note
                         }
                     })
                 });
@@ -306,14 +349,14 @@
                 if (response.ok) {
                     tg.showPopup({
                         title: "✅ Замовлення відправлено!",
-                        message: `Ваше замовлення на ${product} (${weight.toFixed(2)} кг) отримано.`,
+                        message: `${recipe.article}\n${weight.toFixed(2)} кг\n\nЗамовлення передано на склад.`,
                         buttons: [{type: "ok"}]
                     });
                     
-                    // Відправляємо повідомлення в чат з ботом
+                    // Відправляємо дані в чат
                     tg.sendData(JSON.stringify({
                         type: 'order',
-                        product: product,
+                        product: recipe.article,
                         weight: weight,
                         message: message
                     }));
