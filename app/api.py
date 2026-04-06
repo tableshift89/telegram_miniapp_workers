@@ -1,5 +1,4 @@
 import os
-import json
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -38,34 +37,14 @@ class OtherMark(BaseModel):
     worker_id: int
     status: str  # Вщ, Пр, На, Нз
 
-# Маршрути
-@api_app.get("/", response_class=HTMLResponse)
-async def root():
-    return """
-    <html>
-        <head><title>Worker Management System</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-            <h1>✅ Worker Management System</h1>
-            <p>API is running. Use Telegram bot to access the mini-app.</p>
-            <p><a href="/health">Health Check</a></p>
-        </body>
-    </html>
-    """
-
-@api_app.get("/health")
-async def health_check():
-    """Перевірка стану сервера"""
-    return {
-        "status": "ok",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
-    }
+# ========== МАРШРУТИ ДЛЯ МІНІ-ЗАСТОСУНКУ ==========
 
 @api_app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
     """Головна сторінка міні-додатка для цеху"""
+    # Перевіряємо допустимі значення цеху
     if workshop not in ["DMT", "Пакування"]:
-        workshop = "DMT"  # Значення за замовчуванням
+        workshop = "DMT"
     
     return templates.TemplateResponse(
         "index.html", 
@@ -120,18 +99,12 @@ async def current_shift():
     shift = get_current_shift()
     return {"shift_hours": shift}
 
-@api_app.get("/api/stats")
-async def get_stats():
-    """Отримати статистику за сьогодні"""
-    from .database import get_today_statistics
-    stats = get_today_statistics()
-    return stats
+# ========== КОРЕНЕВІ МАРШРУТИ ==========
 
-# CORS middleware для безпеки (опціонально)
-@api_app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
+@api_app.get("/")
+async def root():
+    return {"message": "Worker Management API is running"}
+
+@api_app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
