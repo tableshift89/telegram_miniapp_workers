@@ -2,10 +2,17 @@ services:
   - type: web
     name: telegram-worker-app
     runtime: python
+    repo: https://github.com/YOUR_USERNAME/telegram_miniapp_workers
+    branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: BOT_TOKEN
         sync: false
       - key: APP_URL
-        sync: false
+        fromService:
+          name: telegram-worker-app
+          type: web
+          property: host
+      - key: PORT
+        value: 8000
