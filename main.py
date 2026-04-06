@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -45,7 +45,6 @@ async def lifespan(app: FastAPI):
     
     logger.info("🚀 Starting application...")
     
-    # Ініціалізація бота та бази даних
     try:
         from app.bot import bot as b, dp as d
         from app.database import init_database, sync_workers_from_google
@@ -60,12 +59,10 @@ async def lifespan(app: FastAPI):
         init_google_sheets()
         sync_workers_from_google()
         
-        # Встановлюємо контекст для aiogram 2.x
         from aiogram import Bot
         Bot.set_current(bot)
         bot._current = bot
         
-        # Встановлюємо webhook
         webhook_url = f"{APP_URL}{WEBHOOK_PATH}"
         await bot.set_webhook(webhook_url)
         logger.info(f"🔗 Webhook set to {webhook_url}")
@@ -77,7 +74,6 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    # Очищення при завершенні
     logger.info("🛑 Shutting down...")
     if bot:
         try:
@@ -87,26 +83,21 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error closing bot: {e}")
 
-# Створюємо FastAPI додаток
 app = FastAPI(
     title="Telegram Worker Bot",
     description="Worker attendance management system with Google Sheets integration",
     lifespan=lifespan
 )
 
-# Монтуємо статичні файли
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# ==================== WEBHOOK ДЛЯ TELEGRAM ====================
+# ==================== WEBHOOK ====================
 
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request):
-    """Обробник webhook від Telegram"""
     global bot, dp
-    
     if bot is None or dp is None:
-        logger.error("Bot not ready")
-        return JSONResponse(status_code=500, content={"ok": False, "error": "Bot not ready"})
+        return JSONResponse(status_code=500, content={"ok": False})
     
     try:
         update_data = await request.json()
@@ -114,67 +105,47 @@ async def telegram_webhook(request: Request):
         
         from aiogram.types import Update
         update = Update(**update_data)
-        
-        # Встановлюємо контекст перед обробкою
         from aiogram import Bot
         Bot.set_current(bot)
-        bot._current = bot
-        
         await dp.process_update(update)
         return {"ok": True}
-        
     except Exception as e:
         logger.error(f"Webhook error: {e}")
-        return JSONResponse(status_code=200, content={"ok": False, "error": str(e)})
+        return JSONResponse(status_code=200, content={"ok": False})
 
 @app.get(WEBHOOK_PATH)
 async def webhook_get():
-    """GET запит на webhook (для перевірки)"""
-    return {
-        "message": "Webhook endpoint is active",
-        "bot_ready": bot is not None,
-        "webhook_path": WEBHOOK_PATH
-    }
+    return {"message": "Webhook is active", "bot_ready": bot is not None}
 
-# ==================== МАРШРУТИ ДЛЯ МІНІ-ЗАСТОСУНКУ ====================
+# ==================== API ДЛЯ МІНІ-ДОДАТКУ ====================
 
 @app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
-    """Головна сторінка міні-додатка для цеху"""
     if workshop not in ["DMT", "Пакування"]:
         workshop = "DMT"
-    
-    return templates.TemplateResponse(
-        "index.html", 
-        {"request": request, "workshop": workshop}
-    )
+    return templates.TemplateResponse("index.html", {"request": request, "workshop": workshop})
 
 @app.get("/api/workers/{workshop}")
 async def get_workers(workshop: str):
-    """Отримати список працівників цеху (не відмічених сьогодні)"""
     from app.database import get_workers_by_workshop
     workers = get_workers_by_workshop(workshop)
+    logger.info(f"📋 Workers for {workshop}: {len(workers)}")
     return {"workers": workers}
 
 @app.get("/api/all_workers/{workshop}")
 async def get_all_workers(workshop: str):
-    """Отримати ВСІХ працівників цеху"""
     from app.database import get_all_workers_by_shop
     workers = get_all_workers_by_shop(workshop)
     return {"workers": workers}
 
 @app.post("/api/worker")
 async def create_worker(worker: WorkerCreate):
-    """Додати нового працівника"""
     from app.database import add_worker
     success = add_worker(worker.fullname, worker.workshop)
-    if not success:
-        raise HTTPException(status_code=400, detail="Failed to add worker")
-    return {"ok": True}
+    return {"ok": success}
 
 @app.post("/api/mark_present")
 async def mark_present_route(mark: AttendanceMark):
-    """Відмітити присутність працівника"""
     from app.database import mark_present, save_to_google_sheets
     success = mark_present(mark.worker_id, mark.shift_hours, mark.ktu)
     if success:
@@ -183,7 +154,6 @@ async def mark_present_route(mark: AttendanceMark):
 
 @app.post("/api/mark_other")
 async def mark_other_route(mark: OtherMark):
-    """Відмітити працівника з іншим статусом"""
     from app.database import mark_other, save_to_google_sheets
     success = mark_other(mark.worker_id, mark.status)
     if success:
@@ -192,34 +162,27 @@ async def mark_other_route(mark: OtherMark):
 
 @app.get("/api/report")
 async def get_report():
-    """Отримати звіт за сьогодні"""
     from app.database import get_attendance_report
-    report = get_attendance_report()
-    return report
+    return get_attendance_report()
 
 @app.get("/api/current_shift")
 async def current_shift():
-    """Отримати поточну зміну"""
     from app.database import get_current_shift
-    shift = get_current_shift()
-    return {"shift_hours": shift}
+    return {"shift_hours": get_current_shift()}
 
 @app.get("/api/stats")
 async def get_stats():
-    """Отримати статистику за сьогодні"""
     from app.database import get_today_statistics
-    stats = get_today_statistics()
-    return stats
+    return get_today_statistics()
 
-# ==================== ДІАГНОСТИЧНІ МАРШРУТИ ====================
+# ==================== ДІАГНОСТИКА ====================
 
-@app.get("/debug/google-sheets")
-async def debug_google_sheets():
-    """Діагностика підключення до Google Sheets"""
+@app.get("/debug/google")
+async def debug_google():
+    """Діагностика Google Sheets"""
     from app.google_sheets import init_google_sheets, load_workers_from_sheets
     
     result = {
-        "status": "checking",
         "connection": False,
         "worksheets": [],
         "workers": [],
@@ -228,77 +191,53 @@ async def debug_google_sheets():
     }
     
     try:
-        # Перевіряємо підключення
-        conn_success = init_google_sheets()
-        result["connection"] = conn_success
+        conn = init_google_sheets()
+        result["connection"] = conn
         
-        if conn_success:
-            # Отримуємо список аркушів
+        if conn:
             from app.google_sheets import sheet
             if sheet:
                 worksheets = sheet.worksheets()
                 result["worksheets"] = [ws.title for ws in worksheets]
             
-            # Спроба завантажити працівників
             workers = load_workers_from_sheets()
-            result["workers"] = workers[:5]  # Показуємо перших 5
             result["workers_count"] = len(workers)
-        
-        result["status"] = "ok"
+            result["workers"] = workers[:10]
     except Exception as e:
-        result["status"] = "error"
         result["errors"].append(str(e))
     
     return result
 
-@app.get("/debug/db-workers")
-async def debug_db_workers():
-    """Діагностика працівників в БД"""
+@app.get("/debug/db")
+async def debug_db():
+    """Діагностика БД"""
     from app.database import get_all_workers_by_shop
-    
-    result = {
+    return {
         "DMT": get_all_workers_by_shop("DMT"),
         "Пакування": get_all_workers_by_shop("Пакування")
     }
-    return result
 
-# ==================== СЛУЖБОВІ МАРШРУТИ ====================
+# ==================== СЛУЖБОВІ ====================
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy" if bot is not None else "degraded",
         "bot_ready": bot is not None,
-        "webhook_path": WEBHOOK_PATH,
-        "bot_token_configured": bool(BOT_TOKEN),
-        "app_url_configured": bool(APP_URL)
+        "webhook_path": WEBHOOK_PATH
     }
 
 @app.get("/")
 async def root():
-    """Кореневий маршрут"""
     return {
         "message": "Telegram Worker Bot is running",
-        "version": "2.0.0",
-        "features": [
-            "Google Sheets integration",
-            "Worker attendance tracking",
-            "KTU selection (0.9, 1.0, 1.1, 1.2, 1.3)",
-            "Absence reasons (Вщ, Пр, На, Нз)"
-        ],
         "endpoints": {
             "health": "/health",
-            "webhook": WEBHOOK_PATH,
             "workshop": "/workshop/{DMT|Пакування}",
-            "api": "/api/workers/{workshop}",
-            "debug_google": "/debug/google-sheets",
-            "debug_db": "/debug/db-workers"
-        },
-        "bot_status": "ready" if bot is not None else "initializing"
+            "debug_google": "/debug/google",
+            "debug_db": "/debug/db"
+        }
     }
-
-# ==================== ЗАПУСК ====================
 
 if __name__ == "__main__":
     import uvicorn
