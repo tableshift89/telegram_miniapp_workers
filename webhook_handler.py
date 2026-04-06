@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 import logging
 import os
 import sys
+import asyncio
 
 # Додаємо теку `app` до шляху імпорту
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -16,11 +17,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")
 WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 
-# Глобальна змінна для бота
+# Глобальні змінні
 bot = None
 dp = None
 
-# Ініціалізуємо бота ПРИ СТАРТІ
+# Ініціалізація при старті
 try:
     from app.bot import bot as b, dp as d
     from app.database import init_database
@@ -28,16 +29,23 @@ try:
     bot = b
     dp = d
     init_database()
+    
+    # Встановлюємо поточний екземпляр бота для aiogram 2.x
+    bot._current = bot  # Важливо для aiogram 2.x
+    
     logger.info("✅ Bot and database initialized successfully")
     
-    # Встановлюємо вебхук автоматично
-    import asyncio
+    # Встановлюємо webhook асинхронно
     webhook_url = f"{APP_URL}{WEBHOOK_PATH}"
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        asyncio.create_task(bot.set_webhook(webhook_url))
+        loop.run_until_complete(bot.set_webhook(webhook_url))
         logger.info(f"🔗 Webhook set to {webhook_url}")
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
+    finally:
+        loop.close()
         
 except Exception as e:
     logger.error(f"❌ CRITICAL: Failed to initialize bot: {e}")
@@ -55,9 +63,13 @@ async def webhook(request: Request):
         update_data = await request.json()
         logger.info(f"📨 Received update: {update_data.get('update_id')}")
         
-        # Сумісний спосіб обробки для aiogram 2.x
+        # Встановлюємо поточний екземпляр бота перед обробкою
         from aiogram.types import Update
         update = Update(**update_data)
+        
+        # Ключовий рядок для aiogram 2.x:
+        bot._current = bot
+        
         await dp.process_update(update)
         return {"ok": True}
     except Exception as e:
