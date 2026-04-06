@@ -6,25 +6,7 @@ document.getElementById('workshop-name').innerText = workshop;
 
 let currentShift = 8;
 let workers = [];
-let pendingOther = {};
-
-// Список тестових працівників
-const testWorkers = {
-    "DMT": [
-        "Коваленко Андрій Миколайович", "Шевченко Ольга Петрівна",
-        "Бондаренко Сергій Іванович", "Мельник Тетяна Володимирівна",
-        "Лисенко Віктор Олексійович", "Гончаренко Ірина Василівна",
-        "Руденко Олег Михайлович", "Ткаченко Наталія Сергіївна",
-        "Кравчук Дмитро Андрійович", "Савченко Людмила Ігорівна"
-    ],
-    "Пакування": [
-        "Бойко Андрій Володимирович", "Марченко Оксана Іванівна",
-        "Колесник Володимир Петрович", "Литвиненко Марина Сергіївна",
-        "Федоренко Юрій Олександрович", "Павленко Валентина Дмитрівна",
-        "Ткачук Петро Васильович", "Кузьменко Катерина Олегівна",
-        "Олійник Олександр Вікторович", "Мороз Галина Андріївна"
-    ]
-};
+let absentMode = false;  // Режим проставлення відсутніх
 
 async function loadCurrentShift() {
     try {
@@ -48,22 +30,6 @@ async function loadWorkers() {
     }
 }
 
-async function addTestWorkers() {
-    const workersList = testWorkers[workshop] || testWorkers["DMT"];
-    for (const name of workersList) {
-        try {
-            await fetch('/api/worker', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({fullname: name, workshop: workshop})
-            });
-        } catch(e) {
-            console.error(`Failed to add ${name}:`, e);
-        }
-    }
-    await loadWorkers();
-}
-
 function renderWorkers() {
     const container = document.getElementById('workers-list');
     container.innerHTML = '';
@@ -77,115 +43,109 @@ function renderWorkers() {
         const card = document.createElement('div');
         card.className = 'worker-card';
         card.dataset.id = w.id;
-        card.innerHTML = `
-            <span class="worker-name">${w.fullname}</span>
-            <div class="worker-actions">
-                <select class="ktu-select" data-id="${w.id}">
-                    <option value="0.9">0.9</option>
-                    <option value="1" selected>1</option>
-                    <option value="1.1">1.1</option>
-                    <option value="1.2">1.2</option>
-                    <option value="1.3">1.3</option>
-                </select>
-                <button class="present-btn" data-id="${w.id}">✅ Присутній</button>
-                <button class="other-btn" data-id="${w.id}">❓ Інше</button>
-            </div>
-        `;
+        
+        if (absentMode) {
+            // Режим "Проставити відсутніх" - показуємо drop-down замість кнопки "Присутній"
+            card.innerHTML = `
+                <span class="worker-name">${w.fullname}</span>
+                <div class="worker-actions">
+                    <select class="ktu-select" data-id="${w.id}" style="margin-right:8px;">
+                        <option value="0.9">0.9</option>
+                        <option value="1" selected>1</option>
+                        <option value="1.1">1.1</option>
+                        <option value="1.2">1.2</option>
+                        <option value="1.3">1.3</option>
+                    </select>
+                    <select class="absent-select" data-id="${w.id}" data-status>
+                        <option value="">📋 Виберіть статус</option>
+                        <option value="Вщ">🏖️ Відпустка (Вщ)</option>
+                        <option value="Пр">😷 Прогул (Пр)</option>
+                        <option value="На">📚 Навчання (На)</option>
+                        <option value="Нз">❌ Неявка (Нз)</option>
+                    </select>
+                    <button class="absent-submit-btn" data-id="${w.id}">✅ Підтвердити</button>
+                </div>
+            `;
+        } else {
+            // Звичайний режим - тільки кнопка "Присутній"
+            card.innerHTML = `
+                <span class="worker-name">${w.fullname}</span>
+                <div class="worker-actions">
+                    <select class="ktu-select" data-id="${w.id}">
+                        <option value="0.9">0.9</option>
+                        <option value="1" selected>1</option>
+                        <option value="1.1">1.1</option>
+                        <option value="1.2">1.2</option>
+                        <option value="1.3">1.3</option>
+                    </select>
+                    <button class="present-btn" data-id="${w.id}">✅ Присутній</button>
+                </div>
+            `;
+        }
         container.appendChild(card);
     });
     
-    // Обробник для кнопки "Присутній" - БЕЗ ПОВІДОМЛЕНЬ
-    document.querySelectorAll('.present-btn').forEach(btn => {
-        btn.onclick = async (e) => {
-            e.stopPropagation();
-            const id = parseInt(btn.dataset.id);
-            const ktuSelect = document.querySelector(`.ktu-select[data-id="${id}"]`);
-            const ktu = parseFloat(ktuSelect.value);
-            
-            try {
-                await fetch('/api/mark_present', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({worker_id: id, ktu: ktu, shift_hours: currentShift})
-                });
-                const card = document.querySelector(`.worker-card[data-id="${id}"]`);
-                if (card) card.remove();
-                workers = workers.filter(w => w.id !== id);
-            } catch(e) {
-                console.error('Error marking present:', e);
-            }
-        };
-    });
-    
-    // Обробник для кнопки "Інше"
-    document.querySelectorAll('.other-btn').forEach(btn => {
-        btn.onclick = () => {
-            const id = parseInt(btn.dataset.id);
-            showOtherOptions(id);
-        };
-    });
-}
-
-let currentOtherWorkerId = null;
-
-function showOtherOptions(workerId) {
-    currentOtherWorkerId = workerId;
-    const worker = workers.find(w => w.id === workerId);
-    
-    // Варіанти невиходу: Вщ, Пр, На, Нз
-    const options = [
-        {code: 'Вщ', name: 'Відпустка', emoji: '🏖️'},
-        {code: 'Пр', name: 'Прогул', emoji: '😷'},
-        {code: 'На', name: 'Навчання', emoji: '📚'},
-        {code: 'Нз', name: 'Неявка', emoji: '❌'}
-    ];
-    
-    const container = document.getElementById('other-buttons');
-    container.innerHTML = '';
-    
-    options.forEach(opt => {
-        const btn = document.createElement('button');
-        btn.className = 'other-option-btn';
-        btn.innerHTML = `${opt.emoji} ${opt.name}`;
-        btn.style.margin = '5px';
-        btn.style.padding = '10px 16px';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '28px';
-        btn.style.backgroundColor = '#f59e0b';
-        btn.style.color = 'white';
-        btn.style.cursor = 'pointer';
-        btn.onclick = () => {
-            pendingOther[workerId] = opt.code;
-            document.getElementById('other-controls').style.display = 'block';
-        };
-        container.appendChild(btn);
-    });
-    
-    document.getElementById('other-controls').style.display = 'block';
-}
-
-// Кнопка "Надіслати" для невиходів - БЕЗ ПОВІДОМЛЕНЬ
-document.getElementById('submit-other').onclick = async () => {
-    for (const [id, status] of Object.entries(pendingOther)) {
-        try {
-            await fetch('/api/mark_other', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({worker_id: parseInt(id), status: status})
-            });
-            const card = document.querySelector(`.worker-card[data-id="${id}"]`);
-            if (card) card.remove();
-            workers = workers.filter(w => w.id != id);
-        } catch(e) {
-            console.error('Error marking other:', e);
-        }
+    // Обробники для звичайного режиму
+    if (!absentMode) {
+        document.querySelectorAll('.present-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const ktuSelect = document.querySelector(`.ktu-select[data-id="${id}"]`);
+                const ktu = parseFloat(ktuSelect.value);
+                
+                try {
+                    await fetch('/api/mark_present', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({worker_id: id, ktu: ktu, shift_hours: currentShift})
+                    });
+                    const card = document.querySelector(`.worker-card[data-id="${id}"]`);
+                    if (card) card.remove();
+                    workers = workers.filter(w => w.id !== id);
+                } catch(e) {
+                    console.error('Error marking present:', e);
+                }
+            };
+        });
+    } else {
+        // Обробники для режиму "Проставити відсутніх"
+        document.querySelectorAll('.absent-submit-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const statusSelect = document.querySelector(`.absent-select[data-id="${id}"]`);
+                const status = statusSelect.value;
+                const ktuSelect = document.querySelector(`.ktu-select[data-id="${id}"]`);
+                const ktu = parseFloat(ktuSelect.value);
+                
+                if (!status) {
+                    tg.showPopup({
+                        title: "Помилка",
+                        message: "Виберіть статус відсутності",
+                        buttons: [{type: "ok"}]
+                    });
+                    return;
+                }
+                
+                try {
+                    await fetch('/api/mark_other', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({worker_id: id, status: status})
+                    });
+                    const card = document.querySelector(`.worker-card[data-id="${id}"]`);
+                    if (card) card.remove();
+                    workers = workers.filter(w => w.id !== id);
+                } catch(e) {
+                    console.error('Error marking absent:', e);
+                }
+            };
+        });
     }
-    pendingOther = {};
-    document.getElementById('other-controls').style.display = 'none';
-    currentOtherWorkerId = null;
-};
+}
 
-// Додавання нового працівника - БЕЗ ПОВІДОМЛЕНЬ
+// Додавання нового працівника
 document.getElementById('add-worker-btn').onclick = async () => {
     const name = document.getElementById('new-worker-name').value.trim();
     if (!name) return;
@@ -203,13 +163,43 @@ document.getElementById('add-worker-btn').onclick = async () => {
     }
 };
 
-// Кнопка додавання тестових працівників
-const testBtn = document.getElementById('add-test-workers-btn');
-if (testBtn) {
-    testBtn.onclick = addTestWorkers;
-}
+// Кнопка "Проставити відсутніх"
+const absentModeBtn = document.getElementById('absent-mode-btn');
+const modeBadge = document.getElementById('mode-badge');
 
-// Кнопка "Показати результат"
+absentModeBtn.onclick = () => {
+    if (workers.length === 0) {
+        tg.showPopup({
+            title: "Інформація",
+            message: "Немає невідмічених працівників",
+            buttons: [{type: "ok"}]
+        });
+        return;
+    }
+    
+    absentMode = !absentMode;
+    
+    if (absentMode) {
+        absentModeBtn.style.background = '#10b981';
+        absentModeBtn.innerHTML = '✅ Повернутись до присутності';
+        modeBadge.innerHTML = '📋 Режим відсутніх';
+        modeBadge.className = 'mode-badge mode-active';
+        tg.showPopup({
+            title: "Режим відсутніх",
+            message: "Виберіть статус для кожного працівника зі списку",
+            buttons: [{type: "ok"}]
+        });
+    } else {
+        absentModeBtn.style.background = '#ff9800';
+        absentModeBtn.innerHTML = '📋 Проставити відсутніх';
+        modeBadge.innerHTML = '✅ Режим присутності';
+        modeBadge.className = 'mode-badge mode-normal';
+    }
+    
+    renderWorkers();
+};
+
+// Показати результат
 document.getElementById('show-result').onclick = async () => {
     try {
         const res = await fetch('/api/report');
