@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🏭 Калькулятор рецептури фаршу 10225</title>
+    <title>🍗 Калькулятор рецептури фаршу 10225</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -166,18 +166,28 @@
             font-size: 12px;
             margin-top: 16px;
         }
+
+        .placeholder-option {
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏭 Калькулятор рецептури</h1>
+        <h1>🍗 Калькулятор рецептури</h1>
         <div class="subtitle">Артикул: 10225 | Фарш філе пос. охл</div>
 
         <div class="form-group">
             <label>🔧 Виберіть варіант рецептури:</label>
             <select id="variant-select">
+                <option value="" selected disabled class="placeholder-option">🔽 Оберіть готовий продукт</option>
                 <option value="variant1">📋 Варіант 1 (9408 + 9387)</option>
                 <option value="variant3">📋 Варіант 3 (9408 100%)</option>
+                <option value="" disabled>━━━━━━━━━━━━━━━━━━━━</option>
+                <option value="" disabled>-</option>
+                <option value="" disabled>-</option>
+                <option value="" disabled>-</option>
             </select>
         </div>
 
@@ -187,7 +197,7 @@
         </div>
 
         <div class="result-card" id="result" style="display: none;">
-            <div class="result-title" id="product-title">📦 10225 Фарш філе пос. охл</div>
+            <div class="result-title" id="product-title">🍗 10225 Фарш філе пос. охл</div>
             <div id="ingredients-list"></div>
             <div class="total">
                 <span>✅ Вихід готового фаршу:</span>
@@ -201,7 +211,8 @@
 
         <button id="order-btn">📦 Відправити запит на склад</button>
         <div class="info-text">
-            * Розрахунок враховує вихід фаршу 94% (6% залишок/втрати)
+            * Розрахунок враховує вихід фаршу 94% (6% залишок/втрати)<br>
+            * Всі значення округлюються до більшого цілого кілограма
         </div>
     </div>
 
@@ -243,11 +254,16 @@
             const infoNote = document.getElementById('info-note');
             const orderBtn = document.getElementById('order-btn');
 
+            // Функція округлення до більшого цілого
+            function roundUpToInt(value) {
+                return Math.ceil(value);
+            }
+
             function calculateRecipe() {
                 const variantKey = variantSelect.value;
                 const targetWeight = parseFloat(targetWeightInput.value);
                 
-                if (!targetWeight || targetWeight <= 0) {
+                if (!variantKey || !targetWeight || targetWeight <= 0) {
                     resultDiv.style.display = 'none';
                     return;
                 }
@@ -262,26 +278,28 @@
                     code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amount: requiredRawWeight * (ing.percent / 100)
+                    amountRaw: requiredRawWeight * (ing.percent / 100),
+                    amount: roundUpToInt(requiredRawWeight * (ing.percent / 100))
                 }));
 
-                productTitle.innerHTML = `📦 10225 ${recipe.product_name} (${recipe.name})`;
+                productTitle.innerHTML = `🍗 10225 ${recipe.product_name} (${recipe.name})`;
                 
                 let html = ``;
 
                 ingredientAmounts.forEach(ing => {
                     html += `
                         <div class="ingredient">
-                            <span class="ingredient-name">📦 ${ing.code} - ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
-                            <span class="ingredient-amount">${ing.amount.toFixed(2)} кг</span>
+                            <span class="ingredient-name">🍗 ${ing.code} - ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
+                            <span class="ingredient-amount">${ing.amount} кг</span>
                         </div>
                     `;
                 });
 
                 ingredientsList.innerHTML = html;
-                finalYieldSpan.innerText = `${targetWeight.toFixed(2)} кг`;
+                finalYieldSpan.innerText = `${targetWeight.toFixed(1)} кг`;
                 
-                infoNote.innerHTML = `📌 ${recipe.note}<br>📊 Для отримання ${targetWeight.toFixed(2)} кг готового фаршу потрібно сировини: ${requiredRawWeight.toFixed(2)} кг (з урахуванням втрат 6%)`;
+                const totalRawRounded = roundUpToInt(requiredRawWeight);
+                infoNote.innerHTML = `📌 ${recipe.note}<br>📊 Для отримання ${targetWeight.toFixed(1)} кг готового фаршу потрібно сировини: ${totalRawRounded} кг (з урахуванням втрат 6%, округлено до більшого цілого)`;
                 
                 resultDiv.style.display = 'block';
             }
@@ -305,6 +323,15 @@
                 const variantKey = variantSelect.value;
                 const targetWeight = parseFloat(targetWeightInput.value);
                 
+                if (!variantKey) {
+                    tg.showPopup({
+                        title: "❌ Помилка",
+                        message: "Будь ласка, оберіть варіант рецептури",
+                        buttons: [{type: "ok"}]
+                    });
+                    return;
+                }
+                
                 if (!targetWeight || targetWeight <= 0) {
                     tg.showPopup({
                         title: "❌ Помилка",
@@ -321,40 +348,42 @@
                     code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amount: requiredRawWeight * (ing.percent / 100)
+                    amountRaw: requiredRawWeight * (ing.percent / 100),
+                    amount: roundUpToInt(requiredRawWeight * (ing.percent / 100))
                 }));
 
                 const dateTime = getCurrentDateTime();
                 
                 // Формування повідомлення для попапу
-                let popupMessage = `🏭 ЗАМОВЛЕННЯ НА СКЛАД\n`;
+                let popupMessage = `🍗 ЗАМОВЛЕННЯ НА СКЛАД\n`;
                 popupMessage += `📅 ${dateTime}\n\n`;
-                popupMessage += `📦 Артикул: 10225\n`;
+                popupMessage += `🍗 Артикул: 10225\n`;
                 popupMessage += `🍗 Продукт: Фарш філе пос. охл\n`;
                 popupMessage += `🔧 Рецептура: ${recipe.name}\n\n`;
                 popupMessage += `📋 ПОТРІБНО ЗАМОВИТИ:\n`;
                 
                 ingredientAmounts.forEach(ing => {
-                    popupMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount.toFixed(2)} кг\n`;
+                    popupMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount} кг\n`;
                 });
                 
-                popupMessage += `\n✅ Очікуваний вихід: ${targetWeight.toFixed(2)} кг готового фаршу`;
-                popupMessage += `\n📊 Враховано втрати: 6%`;
+                popupMessage += `\n✅ Очікуваний вихід: ${targetWeight.toFixed(1)} кг готового фаршу`;
+                popupMessage += `\n📊 Враховано втрати: 6% (округлено до більшого цілого)`;
 
                 // Формування повідомлення для відправки на склад
-                let orderMessage = `🏭 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
+                let orderMessage = `🍗 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
                 orderMessage += `📅 *Дата та час:* ${dateTime}\n\n`;
-                orderMessage += `📦 *Артикул:* 10225\n`;
+                orderMessage += `🍗 *Артикул:* 10225\n`;
                 orderMessage += `🍗 *Продукт:* Фарш філе пос. охл\n`;
                 orderMessage += `🔧 *Рецептура:* ${recipe.name}\n\n`;
                 orderMessage += `📋 *Потрібно замовити сировину:*\n`;
                 
                 ingredientAmounts.forEach(ing => {
-                    orderMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount.toFixed(2)} кг\n`;
+                    orderMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount} кг\n`;
                 });
                 
-                orderMessage += `\n✅ *Очікуваний вихід:* ${targetWeight.toFixed(2)} кг готового фаршу`;
+                orderMessage += `\n✅ *Очікуваний вихід:* ${targetWeight.toFixed(1)} кг готового фаршу`;
                 orderMessage += `\n📊 *Враховано втрати:* 6% (вихід 94%)`;
+                orderMessage += `\n🔺 *Всі значення округлено до більшого цілого кг*`;
 
                 try {
                     const response = await fetch('/api/order', {
@@ -404,7 +433,8 @@
                 }
             });
 
-            calculateRecipe();
+            // Початковий розрахунок не запускаємо, поки не обрано варіант
+            resultDiv.style.display = 'none';
         })();
     </script>
 </body>
