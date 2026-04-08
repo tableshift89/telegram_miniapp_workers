@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🥩 Калькулятор рецептури 10225</title>
+    <title>🥩 Калькулятор рецептури</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -64,11 +64,18 @@
             border-radius: 16px;
             font-size: 16px;
             transition: all 0.3s;
+            background: white;
         }
 
         select:focus, input:focus {
             outline: none;
             border-color: #2c3e50;
+        }
+
+        select:disabled {
+            background: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
         }
 
         .result-card {
@@ -171,12 +178,6 @@
             color: #999;
             font-style: italic;
         }
-        
-        .separator-option {
-            color: #ccc;
-            font-size: 12px;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
@@ -185,21 +186,26 @@
         <div class="subtitle">Система розрахунку сировини для фаршу</div>
 
         <div class="form-group">
-            <label>📋 Виберіть артикул та рецептуру:</label>
-            <select id="variant-select">
-                <option value="" selected disabled class="placeholder-option">🔽 Оберіть готовий продукт</option>
-                <option value="variant1">🥩 Артикул 10225 - Фарш філе пос. охл (Варіант 1)</option>
-                <option value="variant3">🥩 Артикул 10225 - Фарш філе пос. охл (Варіант 3)</option>
-                <option value="" disabled class="separator-option">━━━━━━━━━━━━━━━━━━━━</option>
-                <option value="" disabled>-</option>
+            <label>📋 Оберіть рецепт:</label>
+            <select id="recipe-select">
+                <option value="" selected disabled class="placeholder-option">🔽 Оберіть рецепт</option>
+                <option value="10225">🥩 Артикул 10225 - Фарш філе пос. охл</option>
+                <option value="" disabled>──────────</option>
                 <option value="" disabled>-</option>
                 <option value="" disabled>-</option>
             </select>
         </div>
 
         <div class="form-group">
+            <label>🔧 Оберіть варіант рецептури:</label>
+            <select id="variant-select" disabled>
+                <option value="" selected disabled>🔽 Спочатку оберіть рецепт</option>
+            </select>
+        </div>
+
+        <div class="form-group">
             <label>⚖️ Бажана вихідна вага готового фаршу (кг):</label>
-            <input type="number" id="target-weight" placeholder="Введіть бажану вагу в кг" step="0.1" min="0.1">
+            <input type="number" id="target-weight" placeholder="Введіть бажану вагу в кг" step="0.1" min="0.1" disabled>
         </div>
 
         <div class="result-card" id="result" style="display: none;">
@@ -215,7 +221,7 @@
             <div class="info-note" id="info-note"></div>
         </div>
 
-        <button id="order-btn">📦 Відправити запит на склад</button>
+        <button id="order-btn" disabled>📦 Відправити запит на склад</button>
         <div class="info-text">
             * Розрахунок враховує вихід фаршу 94% (6% залишок/втрати)<br>
             * Всі значення округлюються до більшого цілого кілограма
@@ -229,29 +235,32 @@
 
             const YIELD_PERCENT = 94; // Вихід готового фаршу 94%
             
-            // Кожен варіант - це конкретний артикул зі своєю рецептурою
-            const recipes = {
-                variant1: {
+            // Дані про рецепти
+            const recipesData = {
+                "10225": {
                     article: "10225",
-                    full_name: "Фарш філе пос. охл (Варіант 1)",
-                    product_name: "Фарш філе пос. охл",
-                    ingredients: [
-                        { code: "9408", name: "М'ясо філе дрібнок В", percent: 85 },
-                        { code: "9387", name: "М'ясо філе дрібнок М", percent: 15 }
-                    ],
-                    note: "Стандартна рецептура з двома компонентами"
-                },
-                variant3: {
-                    article: "10225",
-                    full_name: "Фарш філе пос. охл (Варіант 3)",
-                    product_name: "Фарш філе пос. охл",
-                    ingredients: [
-                        { code: "9408", name: "М'ясо філе дрібнок В", percent: 100 }
-                    ],
-                    note: "Рецептура з одним компонентом 9408"
+                    full_name: "Фарш філе пос. охл",
+                    variants: {
+                        "variant1": {
+                            name: "Варіант 1",
+                            ingredients: [
+                                { code: "9408", name: "М'ясо філе дрібнок В", percent: 85 },
+                                { code: "9387", name: "М'ясо філе дрібнок М", percent: 15 }
+                            ],
+                            note: "Стандартна рецептура з двома компонентами"
+                        },
+                        "variant2": {
+                            name: "Варіант 2",
+                            ingredients: [
+                                { code: "9408", name: "М'ясо філе дрібнок В", percent: 100 }
+                            ],
+                            note: "Рецептура з одним компонентом 9408"
+                        }
+                    }
                 }
             };
 
+            const recipeSelect = document.getElementById('recipe-select');
             const variantSelect = document.getElementById('variant-select');
             const targetWeightInput = document.getElementById('target-weight');
             const resultDiv = document.getElementById('result');
@@ -261,35 +270,70 @@
             const infoNote = document.getElementById('info-note');
             const orderBtn = document.getElementById('order-btn');
 
+            let currentRecipe = null;
+            let currentVariant = null;
+
             // Функція округлення до більшого цілого
             function roundUpToInt(value) {
                 return Math.ceil(value);
             }
 
+            // Оновлення списку варіантів при виборі рецепту
+            function updateVariants() {
+                const recipeKey = recipeSelect.value;
+                
+                if (!recipeKey || !recipesData[recipeKey]) {
+                    variantSelect.innerHTML = '<option value="" selected disabled>🔽 Спочатку оберіть рецепт</option>';
+                    variantSelect.disabled = true;
+                    targetWeightInput.disabled = true;
+                    targetWeightInput.value = '';
+                    resultDiv.style.display = 'none';
+                    orderBtn.disabled = true;
+                    return;
+                }
+
+                currentRecipe = recipesData[recipeKey];
+                
+                // Заповнюємо випадаючий список варіантів
+                let options = '<option value="" selected disabled>🔽 Оберіть варіант рецептури</option>';
+                for (const [key, variant] of Object.entries(currentRecipe.variants)) {
+                    options += `<option value="${key}">🥩 ${variant.name}</option>`;
+                }
+                variantSelect.innerHTML = options;
+                variantSelect.disabled = false;
+                
+                // Скидаємо вибір варіанту
+                variantSelect.value = '';
+                targetWeightInput.disabled = true;
+                targetWeightInput.value = '';
+                resultDiv.style.display = 'none';
+                orderBtn.disabled = true;
+            }
+
+            // Розрахунок рецептури
             function calculateRecipe() {
                 const variantKey = variantSelect.value;
                 const targetWeight = parseFloat(targetWeightInput.value);
                 
-                if (!variantKey || !targetWeight || targetWeight <= 0) {
+                if (!currentRecipe || !variantKey || !targetWeight || targetWeight <= 0) {
                     resultDiv.style.display = 'none';
                     return;
                 }
 
-                const recipe = recipes[variantKey];
-                if (!recipe) return;
+                currentVariant = currentRecipe.variants[variantKey];
+                if (!currentVariant) return;
 
                 // Розрахунок необхідної сировини з урахуванням виходу 94%
                 const requiredRawWeight = targetWeight / (YIELD_PERCENT / 100);
                 
-                const ingredientAmounts = recipe.ingredients.map(ing => ({
+                const ingredientAmounts = currentVariant.ingredients.map(ing => ({
                     code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amountRaw: requiredRawWeight * (ing.percent / 100),
                     amount: roundUpToInt(requiredRawWeight * (ing.percent / 100))
                 }));
 
-                productTitle.innerHTML = `🥩 ${recipe.article} ${recipe.product_name}`;
+                productTitle.innerHTML = `🥩 ${currentRecipe.article} ${currentRecipe.full_name} (${currentVariant.name})`;
                 
                 let html = ``;
 
@@ -306,9 +350,10 @@
                 finalYieldSpan.innerText = `${targetWeight.toFixed(1)} кг`;
                 
                 const totalRawRounded = roundUpToInt(requiredRawWeight);
-                infoNote.innerHTML = `📌 ${recipe.note}<br>📊 Для отримання ${targetWeight.toFixed(1)} кг готового фаршу потрібно сировини: ${totalRawRounded} кг (з урахуванням втрат 6%, округлено до більшого цілого)`;
+                infoNote.innerHTML = `📌 ${currentVariant.note}<br>📊 Для отримання ${targetWeight.toFixed(1)} кг готового фаршу потрібно сировини: ${totalRawRounded} кг (з урахуванням втрат 6%, округлено до більшого цілого)`;
                 
                 resultDiv.style.display = 'block';
+                orderBtn.disabled = false;
             }
 
             function getCurrentDateTime() {
@@ -323,21 +368,33 @@
                 });
             }
 
-            variantSelect.addEventListener('change', calculateRecipe);
+            // Обробники подій
+            recipeSelect.addEventListener('change', () => {
+                updateVariants();
+                targetWeightInput.disabled = true;
+                targetWeightInput.value = '';
+                resultDiv.style.display = 'none';
+                orderBtn.disabled = true;
+            });
+
+            variantSelect.addEventListener('change', () => {
+                if (variantSelect.value) {
+                    targetWeightInput.disabled = false;
+                    targetWeightInput.value = '';
+                    resultDiv.style.display = 'none';
+                    orderBtn.disabled = true;
+                } else {
+                    targetWeightInput.disabled = true;
+                    targetWeightInput.value = '';
+                    resultDiv.style.display = 'none';
+                    orderBtn.disabled = true;
+                }
+            });
+
             targetWeightInput.addEventListener('input', calculateRecipe);
 
             orderBtn.addEventListener('click', async () => {
-                const variantKey = variantSelect.value;
                 const targetWeight = parseFloat(targetWeightInput.value);
-                
-                if (!variantKey) {
-                    tg.showPopup({
-                        title: "❌ Помилка",
-                        message: "Будь ласка, оберіть артикул та рецептуру",
-                        buttons: [{type: "ok"}]
-                    });
-                    return;
-                }
                 
                 if (!targetWeight || targetWeight <= 0) {
                     tg.showPopup({
@@ -348,14 +405,12 @@
                     return;
                 }
 
-                const recipe = recipes[variantKey];
                 const requiredRawWeight = targetWeight / (YIELD_PERCENT / 100);
                 
-                const ingredientAmounts = recipe.ingredients.map(ing => ({
+                const ingredientAmounts = currentVariant.ingredients.map(ing => ({
                     code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amountRaw: requiredRawWeight * (ing.percent / 100),
                     amount: roundUpToInt(requiredRawWeight * (ing.percent / 100))
                 }));
 
@@ -364,9 +419,9 @@
                 // Формування повідомлення для попапу
                 let popupMessage = `🥩 ЗАМОВЛЕННЯ НА СКЛАД\n`;
                 popupMessage += `📅 ${dateTime}\n\n`;
-                popupMessage += `🥩 Артикул: ${recipe.article}\n`;
-                popupMessage += `🥩 Продукт: ${recipe.product_name}\n`;
-                popupMessage += `🔧 Рецептура: ${recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3"}\n\n`;
+                popupMessage += `🥩 Артикул: ${currentRecipe.article}\n`;
+                popupMessage += `🥩 Продукт: ${currentRecipe.full_name}\n`;
+                popupMessage += `🔧 Рецептура: ${currentVariant.name}\n\n`;
                 popupMessage += `📋 ПОТРІБНО ЗАМОВИТИ:\n`;
                 
                 ingredientAmounts.forEach(ing => {
@@ -379,9 +434,9 @@
                 // Формування повідомлення для відправки на склад
                 let orderMessage = `🥩 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
                 orderMessage += `📅 *Дата та час:* ${dateTime}\n\n`;
-                orderMessage += `🥩 *Артикул:* ${recipe.article}\n`;
-                orderMessage += `🥩 *Продукт:* ${recipe.product_name}\n`;
-                orderMessage += `🔧 *Рецептура:* ${recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3"}\n\n`;
+                orderMessage += `🥩 *Артикул:* ${currentRecipe.article}\n`;
+                orderMessage += `🥩 *Продукт:* ${currentRecipe.full_name}\n`;
+                orderMessage += `🔧 *Рецептура:* ${currentVariant.name}\n\n`;
                 orderMessage += `📋 *Потрібно замовити сировину:*\n`;
                 
                 ingredientAmounts.forEach(ing => {
@@ -397,9 +452,9 @@
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            article: recipe.article,
-                            product_name: recipe.product_name,
-                            variant: recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3",
+                            article: currentRecipe.article,
+                            product_name: currentRecipe.full_name,
+                            variant: currentVariant.name,
                             target_weight: targetWeight,
                             required_raw_weight: requiredRawWeight,
                             ingredients: ingredientAmounts,
@@ -416,8 +471,8 @@
                         
                         tg.sendData(JSON.stringify({
                             type: 'order',
-                            article: recipe.article,
-                            variant: recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3",
+                            article: currentRecipe.article,
+                            variant: currentVariant.name,
                             target_weight: targetWeight,
                             ingredients: ingredientAmounts,
                             date_time: dateTime,
@@ -440,8 +495,8 @@
                 }
             });
 
-            // Початковий розрахунок не запускаємо, поки не обрано варіант
-            resultDiv.style.display = 'none';
+            // Початкове налаштування
+            updateVariants();
         })();
     </script>
 </body>
