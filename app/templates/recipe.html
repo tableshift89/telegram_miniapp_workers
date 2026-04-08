@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🍗 Калькулятор рецептури курятини</title>
+    <title>🏭 Калькулятор рецептури фаршу 10225</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -13,7 +13,7 @@
         }
 
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #1a1a2e 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 20px;
             min-height: 100vh;
@@ -32,14 +32,18 @@
             text-align: center;
             color: #333;
             margin-bottom: 8px;
-            font-size: 24px;
+            font-size: 22px;
         }
 
         .subtitle {
             text-align: center;
-            color: #888;
-            font-size: 12px;
+            color: #2c3e50;
+            font-size: 13px;
             margin-bottom: 24px;
+            font-weight: 600;
+            background: #e8ecf1;
+            padding: 8px;
+            border-radius: 12px;
         }
 
         .form-group {
@@ -64,11 +68,11 @@
 
         select:focus, input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #2c3e50;
         }
 
         .result-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
             border-radius: 24px;
             padding: 20px;
             margin: 20px 0;
@@ -77,11 +81,11 @@
         .result-title {
             font-size: 18px;
             font-weight: 700;
-            color: #333;
+            color: #2c3e50;
             margin-bottom: 16px;
             text-align: center;
             padding-bottom: 8px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid #2c3e50;
         }
 
         .ingredient {
@@ -108,13 +112,13 @@
 
         .ingredient-amount {
             font-weight: 700;
-            color: #667eea;
+            color: #2c3e50;
         }
 
         .total {
             margin-top: 16px;
             padding-top: 16px;
-            border-top: 2px solid #667eea;
+            border-top: 2px solid #2c3e50;
             display: flex;
             justify-content: space-between;
             font-weight: 700;
@@ -130,10 +134,19 @@
             color: #856404;
         }
 
+        .yield-note {
+            background: #d1ecf1;
+            border-radius: 16px;
+            padding: 12px;
+            margin: 16px 0;
+            font-size: 12px;
+            color: #0c5460;
+        }
+
         button {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #1a1a2e 100%);
             color: white;
             border: none;
             border-radius: 28px;
@@ -157,37 +170,38 @@
 </head>
 <body>
     <div class="container">
-        <h1>🍗 Калькулятор рецептури</h1>
-        <div class="subtitle">Сире запаковане м'ясо курятини</div>
+        <h1>🏭 Калькулятор рецептури</h1>
+        <div class="subtitle">Артикул: 10225 | Фарш філе пос. охл</div>
 
         <div class="form-group">
-            <label>📦 Виберіть артикул продукту:</label>
-            <select id="product-select">
-                <option value="fresh_1110">🥩 Фарш 1110 (Філе куряче)</option>
-                <option value="fresh_1120">🍗 Фарш 1120 (Стегно куряче)</option>
-                <option value="fresh_1130">🍖 Фарш 1130 (Крильце куряче)</option>
-                <option value="fresh_1140">🍗 Фарш 1140 (Гомілка куряча)</option>
+            <label>🔧 Виберіть варіант рецептури:</label>
+            <select id="variant-select">
+                <option value="variant1">📋 Варіант 1 (9408 + 9387)</option>
+                <option value="variant3">📋 Варіант 3 (9408 100%)</option>
             </select>
         </div>
 
         <div class="form-group">
-            <label>⚖️ Кількість (кг):</label>
-            <input type="number" id="weight" placeholder="Введіть кількість в кг" step="0.1" min="0.1">
+            <label>⚖️ Бажана вихідна вага готового фаршу (кг):</label>
+            <input type="number" id="target-weight" placeholder="Введіть бажану вагу в кг" step="0.1" min="0.1">
         </div>
 
         <div class="result-card" id="result" style="display: none;">
-            <div class="result-title" id="product-title"></div>
+            <div class="result-title" id="product-title">📦 10225 Фарш філе пос. охл</div>
             <div id="ingredients-list"></div>
             <div class="total">
-                <span>📦 Загальна вага:</span>
-                <span id="total-weight">0 кг</span>
+                <span>✅ Вихід готового фаршу:</span>
+                <span id="final-yield">0 кг</span>
+            </div>
+            <div class="yield-note" id="yield-note">
+                ⚙️ Вихід фаршу: 94% (втрати 6%)
             </div>
             <div class="info-note" id="info-note"></div>
         </div>
 
-        <button id="order-btn">📦 Замовити в склад</button>
+        <button id="order-btn">📦 Відправити запит на склад</button>
         <div class="info-text">
-            * Розрахунок: основа 80%, додаткові інгредієнти по 10% кожен
+            * Розрахунок враховує вихід фаршу 94% (6% залишок/втрати)
         </div>
     </div>
 
@@ -196,177 +210,195 @@
             const tg = window.Telegram.WebApp;
             tg.expand();
 
+            const YIELD_PERCENT = 94; // Вихід готового фаршу 94%
+            
             const recipes = {
-                "fresh_1110": {
-                    name: "🥩 Фарш 1110 (Філе куряче)",
-                    article: "Фарш 1110",
-                    base: { name: "Велике філе куряче", percent: 80 },
+                variant1: {
+                    name: "Варіант 1",
+                    article: "10225",
+                    product_name: "Фарш філе пос. охл",
                     ingredients: [
-                        { name: "Мале філе куряче", percent: 10 },
-                        { name: "Подрібнене філе", percent: 10 }
+                        { code: "9408", name: "М'ясо філе дрібнок В", percent: 85 },
+                        { code: "9387", name: "М'ясо філе дрібнок М", percent: 15 }
                     ],
-                    note: "Для фаршу дрібного помелу"
+                    note: "Стандартна рецептура з двома компонентами"
                 },
-                "fresh_1120": {
-                    name: "🍗 Фарш 1120 (Стегно куряче)",
-                    article: "Фарш 1120",
-                    base: { name: "Стегно без кістки", percent: 80 },
+                variant3: {
+                    name: "Варіант 3",
+                    article: "10225",
+                    product_name: "Фарш філе пос. охл",
                     ingredients: [
-                        { name: "Стегно з кісткою", percent: 10 },
-                        { name: "Обрізки стегна", percent: 10 }
+                        { code: "9408", name: "М'ясо філе дрібнок В", percent: 100 }
                     ],
-                    note: "Для фаршу середнього помелу"
-                },
-                "fresh_1130": {
-                    name: "🍖 Фарш 1130 (Крильце куряче)",
-                    article: "Фарш 1130",
-                    base: { name: "Крильце без кістки", percent: 80 },
-                    ingredients: [
-                        { name: "Крильце з кісткою", percent: 10 },
-                        { name: "Обрізки крильця", percent: 10 }
-                    ],
-                    note: "Для фаршу крупного помелу"
-                },
-                "fresh_1140": {
-                    name: "🍗 Фарш 1140 (Гомілка куряча)",
-                    article: "Фарш 1140",
-                    base: { name: "Гомілка без кістки", percent: 80 },
-                    ingredients: [
-                        { name: "Гомілка з кісткою", percent: 10 },
-                        { name: "Обрізки гомілки", percent: 10 }
-                    ],
-                    note: "Для фаршу ніжного помелу"
+                    note: "Рецептура з одним компонентом 9408"
                 }
             };
 
-            const productSelect = document.getElementById('product-select');
-            const weightInput = document.getElementById('weight');
+            const variantSelect = document.getElementById('variant-select');
+            const targetWeightInput = document.getElementById('target-weight');
             const resultDiv = document.getElementById('result');
             const productTitle = document.getElementById('product-title');
             const ingredientsList = document.getElementById('ingredients-list');
-            const totalWeightSpan = document.getElementById('total-weight');
+            const finalYieldSpan = document.getElementById('final-yield');
             const infoNote = document.getElementById('info-note');
             const orderBtn = document.getElementById('order-btn');
 
             function calculateRecipe() {
-                const productKey = productSelect.value;
-                const weight = parseFloat(weightInput.value);
+                const variantKey = variantSelect.value;
+                const targetWeight = parseFloat(targetWeightInput.value);
                 
-                if (!weight || weight <= 0) {
+                if (!targetWeight || targetWeight <= 0) {
                     resultDiv.style.display = 'none';
                     return;
                 }
 
-                const recipe = recipes[productKey];
+                const recipe = recipes[variantKey];
                 if (!recipe) return;
 
-                const baseAmount = weight * (recipe.base.percent / 100);
+                // Розрахунок необхідної сировини з урахуванням виходу 94%
+                const requiredRawWeight = targetWeight / (YIELD_PERCENT / 100);
+                
                 const ingredientAmounts = recipe.ingredients.map(ing => ({
+                    code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amount: weight * (ing.percent / 100)
+                    amount: requiredRawWeight * (ing.percent / 100)
                 }));
 
-                productTitle.innerHTML = `📋 ${recipe.name}`;
+                productTitle.innerHTML = `📦 10225 ${recipe.product_name} (${recipe.name})`;
                 
-                let html = `
-                    <div class="ingredient">
-                        <span class="ingredient-name">🍗 ${recipe.base.name} <span class="ingredient-percent">(${recipe.base.percent}%)</span>:</span>
-                        <span class="ingredient-amount">${baseAmount.toFixed(2)} кг</span>
-                    </div>
-                `;
+                let html = ``;
 
                 ingredientAmounts.forEach(ing => {
                     html += `
                         <div class="ingredient">
-                            <span class="ingredient-name">➕ ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
+                            <span class="ingredient-name">📦 ${ing.code} - ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
                             <span class="ingredient-amount">${ing.amount.toFixed(2)} кг</span>
                         </div>
                     `;
                 });
 
                 ingredientsList.innerHTML = html;
-                totalWeightSpan.innerText = `${weight.toFixed(2)} кг`;
-                infoNote.innerHTML = `📌 ${recipe.note} | Артикул: ${recipe.article}`;
+                finalYieldSpan.innerText = `${targetWeight.toFixed(2)} кг`;
+                
+                infoNote.innerHTML = `📌 ${recipe.note}<br>📊 Для отримання ${targetWeight.toFixed(2)} кг готового фаршу потрібно сировини: ${requiredRawWeight.toFixed(2)} кг (з урахуванням втрат 6%)`;
+                
                 resultDiv.style.display = 'block';
             }
 
-            productSelect.addEventListener('change', calculateRecipe);
-            weightInput.addEventListener('input', calculateRecipe);
+            function getCurrentDateTime() {
+                const now = new Date();
+                return now.toLocaleString('uk-UA', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+
+            variantSelect.addEventListener('change', calculateRecipe);
+            targetWeightInput.addEventListener('input', calculateRecipe);
 
             orderBtn.addEventListener('click', async () => {
-                const productKey = productSelect.value;
-                const weight = parseFloat(weightInput.value);
+                const variantKey = variantSelect.value;
+                const targetWeight = parseFloat(targetWeightInput.value);
                 
-                if (!weight || weight <= 0) {
+                if (!targetWeight || targetWeight <= 0) {
                     tg.showPopup({
-                        title: "Помилка",
-                        message: "Будь ласка, введіть кількість в кг",
+                        title: "❌ Помилка",
+                        message: "Будь ласка, введіть бажану вихідну вагу фаршу в кг",
                         buttons: [{type: "ok"}]
                     });
                     return;
                 }
 
-                const recipe = recipes[productKey];
-                const baseAmount = weight * (recipe.base.percent / 100);
+                const recipe = recipes[variantKey];
+                const requiredRawWeight = targetWeight / (YIELD_PERCENT / 100);
+                
                 const ingredientAmounts = recipe.ingredients.map(ing => ({
+                    code: ing.code,
                     name: ing.name,
                     percent: ing.percent,
-                    amount: weight * (ing.percent / 100)
+                    amount: requiredRawWeight * (ing.percent / 100)
                 }));
 
-                let message = `📦 *НОВЕ ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
-                message += `🏷️ *Артикул:* ${recipe.article}\n`;
-                message += `🍗 *Продукт:* ${recipe.name}\n`;
-                message += `⚖️ *Загальна вага:* ${weight.toFixed(2)} кг\n\n`;
-                message += `📋 *Склад рецептури:*\n`;
-                message += `• ${recipe.base.name} (${recipe.base.percent}%): ${baseAmount.toFixed(2)} кг\n`;
+                const dateTime = getCurrentDateTime();
+                
+                // Формування повідомлення для попапу
+                let popupMessage = `🏭 ЗАМОВЛЕННЯ НА СКЛАД\n`;
+                popupMessage += `📅 ${dateTime}\n\n`;
+                popupMessage += `📦 Артикул: 10225\n`;
+                popupMessage += `🍗 Продукт: Фарш філе пос. охл\n`;
+                popupMessage += `🔧 Рецептура: ${recipe.name}\n\n`;
+                popupMessage += `📋 ПОТРІБНО ЗАМОВИТИ:\n`;
+                
                 ingredientAmounts.forEach(ing => {
-                    message += `• ${ing.name} (${ing.percent}%): ${ing.amount.toFixed(2)} кг\n`;
+                    popupMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount.toFixed(2)} кг\n`;
                 });
-                message += `\n📌 *Примітка:* ${recipe.note}`;
+                
+                popupMessage += `\n✅ Очікуваний вихід: ${targetWeight.toFixed(2)} кг готового фаршу`;
+                popupMessage += `\n📊 Враховано втрати: 6%`;
+
+                // Формування повідомлення для відправки на склад
+                let orderMessage = `🏭 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
+                orderMessage += `📅 *Дата та час:* ${dateTime}\n\n`;
+                orderMessage += `📦 *Артикул:* 10225\n`;
+                orderMessage += `🍗 *Продукт:* Фарш філе пос. охл\n`;
+                orderMessage += `🔧 *Рецептура:* ${recipe.name}\n\n`;
+                orderMessage += `📋 *Потрібно замовити сировину:*\n`;
+                
+                ingredientAmounts.forEach(ing => {
+                    orderMessage += `• Артикул ${ing.code} (${ing.name}): ${ing.amount.toFixed(2)} кг\n`;
+                });
+                
+                orderMessage += `\n✅ *Очікуваний вихід:* ${targetWeight.toFixed(2)} кг готового фаршу`;
+                orderMessage += `\n📊 *Враховано втрати:* 6% (вихід 94%)`;
 
                 try {
                     const response = await fetch('/api/order', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            product: recipe.article,
-                            product_name: recipe.name,
-                            weight: weight,
-                            recipe: {
-                                base: { name: recipe.base.name, percent: recipe.base.percent, amount: baseAmount },
-                                ingredients: ingredientAmounts,
-                                note: recipe.note
-                            }
+                            article: "10225",
+                            product_name: "Фарш філе пос. охл",
+                            variant: recipe.name,
+                            target_weight: targetWeight,
+                            required_raw_weight: requiredRawWeight,
+                            ingredients: ingredientAmounts,
+                            date_time: dateTime
                         })
                     });
 
                     if (response.ok) {
                         tg.showPopup({
                             title: "✅ Замовлення відправлено!",
-                            message: `${recipe.article}\n${weight.toFixed(2)} кг\n\nЗамовлення передано на склад.`,
+                            message: popupMessage,
                             buttons: [{type: "ok"}]
                         });
                         
                         tg.sendData(JSON.stringify({
                             type: 'order',
-                            product: recipe.article,
-                            weight: weight,
-                            message: message
+                            article: "10225",
+                            variant: recipe.name,
+                            target_weight: targetWeight,
+                            ingredients: ingredientAmounts,
+                            date_time: dateTime,
+                            message: orderMessage
                         }));
                     } else {
                         tg.showPopup({
-                            title: "Помилка",
-                            message: "Не вдалося відправити замовлення",
+                            title: "❌ Помилка",
+                            message: "Не вдалося відправити замовлення. Спробуйте ще раз.",
                             buttons: [{type: "ok"}]
                         });
                     }
                 } catch (error) {
                     console.error('Error:', error);
                     tg.showPopup({
-                        title: "Помилка",
-                        message: "Помилка з'єднання",
+                        title: "❌ Помилка",
+                        message: "Помилка з'єднання. Перевірте інтернет.",
                         buttons: [{type: "ok"}]
                     });
                 }
