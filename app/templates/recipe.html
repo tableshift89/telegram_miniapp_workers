@@ -37,31 +37,10 @@
             background: rgba(255,255,255,0.95);
             border-radius: 32px;
             padding: 24px;
+            padding-bottom: 20px;
             box-shadow: 0 25px 45px rgba(0,0,0,0.2);
             transition: all 0.3s ease;
-        }
-
-        .header-controls {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 16px;
-        }
-
-        .fullscreen-btn {
-            background: rgba(44, 62, 80, 0.1);
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 8px 12px;
-            border-radius: 40px;
-            transition: all 0.3s;
-            width: auto;
-            background: #e8ecf1;
-            box-shadow: none;
-        }
-
-        .fullscreen-btn:active {
-            transform: scale(0.95);
+            position: relative;
         }
 
         h1 {
@@ -186,7 +165,7 @@
             color: #0c5460;
         }
 
-        button {
+        .order-btn {
             width: 100%;
             padding: 16px;
             background: linear-gradient(135deg, #2c3e50 0%, #1a1a2e 100%);
@@ -197,10 +176,34 @@
             font-weight: 700;
             cursor: pointer;
             transition: transform 0.2s;
+            margin-bottom: 12px;
         }
 
-        button:active {
+        .order-btn:active {
             transform: scale(0.98);
+        }
+
+        .fullscreen-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px;
+            background: rgba(44, 62, 80, 0.1);
+            border: 1px solid rgba(44, 62, 80, 0.2);
+            border-radius: 40px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #2c3e50;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+
+        .fullscreen-btn:active {
+            transform: scale(0.98);
+            background: rgba(44, 62, 80, 0.2);
         }
 
         .info-text {
@@ -214,14 +217,14 @@
             color: #999;
             font-style: italic;
         }
+
+        .footer {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header-controls">
-            <button class="fullscreen-btn" id="fullscreen-btn">⛶</button>
-        </div>
-
         <h1>🥩 Калькулятор рецептури</h1>
         <div class="subtitle">Система розрахунку сировини для фаршу</div>
 
@@ -261,7 +264,12 @@
             <div class="info-note" id="info-note"></div>
         </div>
 
-        <button id="order-btn" disabled>📦 Відправити запит на склад</button>
+        <button id="order-btn" class="order-btn" disabled>📦 Відправити запит на склад</button>
+        
+        <div class="footer">
+            <button id="fullscreen-btn" class="fullscreen-btn">🔭 На весь екран</button>
+        </div>
+        
         <div class="info-text">
             * Розрахунок враховує вихід фаршу 94% (6% залишок/втрати)<br>
             * Всі значення округлюються до більшого цілого кілограма
@@ -324,12 +332,10 @@
                 
                 if (isFullscreen) {
                     body.classList.add('fullscreen');
-                    fullscreenBtn.textContent = '✕';
-                    fullscreenBtn.style.fontSize = '22px';
+                    fullscreenBtn.innerHTML = '🔭 Звичайний розмір';
                 } else {
                     body.classList.remove('fullscreen');
-                    fullscreenBtn.textContent = '⛶';
-                    fullscreenBtn.style.fontSize = '24px';
+                    fullscreenBtn.innerHTML = '🔭 На весь екран';
                 }
             }
 
