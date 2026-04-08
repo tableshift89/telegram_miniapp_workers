@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🍗 Калькулятор рецептури фаршу 10225</title>
+    <title>🥩 Калькулятор рецептури 10225</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         * {
@@ -171,20 +171,26 @@
             color: #999;
             font-style: italic;
         }
+        
+        .separator-option {
+            color: #ccc;
+            font-size: 12px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🍗 Калькулятор рецептури</h1>
-        <div class="subtitle">Артикул: 10225 | Фарш філе пос. охл</div>
+        <h1>🥩 Калькулятор рецептури</h1>
+        <div class="subtitle">Система розрахунку сировини для фаршу</div>
 
         <div class="form-group">
-            <label>🔧 Виберіть варіант рецептури:</label>
+            <label>📋 Виберіть артикул та рецептуру:</label>
             <select id="variant-select">
                 <option value="" selected disabled class="placeholder-option">🔽 Оберіть готовий продукт</option>
-                <option value="variant1">📋 Варіант 1 (9408 + 9387)</option>
-                <option value="variant3">📋 Варіант 3 (9408 100%)</option>
-                <option value="" disabled>━━━━━━━━━━━━━━━━━━━━</option>
+                <option value="variant1">🥩 Артикул 10225 - Фарш філе пос. охл (Варіант 1)</option>
+                <option value="variant3">🥩 Артикул 10225 - Фарш філе пос. охл (Варіант 3)</option>
+                <option value="" disabled class="separator-option">━━━━━━━━━━━━━━━━━━━━</option>
                 <option value="" disabled>-</option>
                 <option value="" disabled>-</option>
                 <option value="" disabled>-</option>
@@ -197,7 +203,7 @@
         </div>
 
         <div class="result-card" id="result" style="display: none;">
-            <div class="result-title" id="product-title">🍗 10225 Фарш філе пос. охл</div>
+            <div class="result-title" id="product-title">🥩 10225 Фарш філе пос. охл</div>
             <div id="ingredients-list"></div>
             <div class="total">
                 <span>✅ Вихід готового фаршу:</span>
@@ -223,10 +229,11 @@
 
             const YIELD_PERCENT = 94; // Вихід готового фаршу 94%
             
+            // Кожен варіант - це конкретний артикул зі своєю рецептурою
             const recipes = {
                 variant1: {
-                    name: "Варіант 1",
                     article: "10225",
+                    full_name: "Фарш філе пос. охл (Варіант 1)",
                     product_name: "Фарш філе пос. охл",
                     ingredients: [
                         { code: "9408", name: "М'ясо філе дрібнок В", percent: 85 },
@@ -235,8 +242,8 @@
                     note: "Стандартна рецептура з двома компонентами"
                 },
                 variant3: {
-                    name: "Варіант 3",
                     article: "10225",
+                    full_name: "Фарш філе пос. охл (Варіант 3)",
                     product_name: "Фарш філе пос. охл",
                     ingredients: [
                         { code: "9408", name: "М'ясо філе дрібнок В", percent: 100 }
@@ -282,14 +289,14 @@
                     amount: roundUpToInt(requiredRawWeight * (ing.percent / 100))
                 }));
 
-                productTitle.innerHTML = `🍗 10225 ${recipe.product_name} (${recipe.name})`;
+                productTitle.innerHTML = `🥩 ${recipe.article} ${recipe.product_name}`;
                 
                 let html = ``;
 
                 ingredientAmounts.forEach(ing => {
                     html += `
                         <div class="ingredient">
-                            <span class="ingredient-name">🍗 ${ing.code} - ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
+                            <span class="ingredient-name">🥩 ${ing.code} - ${ing.name} <span class="ingredient-percent">(${ing.percent}%)</span>:</span>
                             <span class="ingredient-amount">${ing.amount} кг</span>
                         </div>
                     `;
@@ -326,7 +333,7 @@
                 if (!variantKey) {
                     tg.showPopup({
                         title: "❌ Помилка",
-                        message: "Будь ласка, оберіть варіант рецептури",
+                        message: "Будь ласка, оберіть артикул та рецептуру",
                         buttons: [{type: "ok"}]
                     });
                     return;
@@ -355,11 +362,11 @@
                 const dateTime = getCurrentDateTime();
                 
                 // Формування повідомлення для попапу
-                let popupMessage = `🍗 ЗАМОВЛЕННЯ НА СКЛАД\n`;
+                let popupMessage = `🥩 ЗАМОВЛЕННЯ НА СКЛАД\n`;
                 popupMessage += `📅 ${dateTime}\n\n`;
-                popupMessage += `🍗 Артикул: 10225\n`;
-                popupMessage += `🍗 Продукт: Фарш філе пос. охл\n`;
-                popupMessage += `🔧 Рецептура: ${recipe.name}\n\n`;
+                popupMessage += `🥩 Артикул: ${recipe.article}\n`;
+                popupMessage += `🥩 Продукт: ${recipe.product_name}\n`;
+                popupMessage += `🔧 Рецептура: ${recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3"}\n\n`;
                 popupMessage += `📋 ПОТРІБНО ЗАМОВИТИ:\n`;
                 
                 ingredientAmounts.forEach(ing => {
@@ -370,11 +377,11 @@
                 popupMessage += `\n📊 Враховано втрати: 6% (округлено до більшого цілого)`;
 
                 // Формування повідомлення для відправки на склад
-                let orderMessage = `🍗 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
+                let orderMessage = `🥩 *ЗАМОВЛЕННЯ НА СКЛАД*\n\n`;
                 orderMessage += `📅 *Дата та час:* ${dateTime}\n\n`;
-                orderMessage += `🍗 *Артикул:* 10225\n`;
-                orderMessage += `🍗 *Продукт:* Фарш філе пос. охл\n`;
-                orderMessage += `🔧 *Рецептура:* ${recipe.name}\n\n`;
+                orderMessage += `🥩 *Артикул:* ${recipe.article}\n`;
+                orderMessage += `🥩 *Продукт:* ${recipe.product_name}\n`;
+                orderMessage += `🔧 *Рецептура:* ${recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3"}\n\n`;
                 orderMessage += `📋 *Потрібно замовити сировину:*\n`;
                 
                 ingredientAmounts.forEach(ing => {
@@ -390,9 +397,9 @@
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            article: "10225",
-                            product_name: "Фарш філе пос. охл",
-                            variant: recipe.name,
+                            article: recipe.article,
+                            product_name: recipe.product_name,
+                            variant: recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3",
                             target_weight: targetWeight,
                             required_raw_weight: requiredRawWeight,
                             ingredients: ingredientAmounts,
@@ -409,8 +416,8 @@
                         
                         tg.sendData(JSON.stringify({
                             type: 'order',
-                            article: "10225",
-                            variant: recipe.name,
+                            article: recipe.article,
+                            variant: recipe.name === "Варіант 1" ? "Варіант 1" : "Варіант 3",
                             target_weight: targetWeight,
                             ingredients: ingredientAmounts,
                             date_time: dateTime,
