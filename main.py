@@ -20,6 +20,7 @@ WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
 bot = None
 dp = None
 
+# Моделі даних
 class WorkerCreate(BaseModel):
     fullname: str
     workshop: str
@@ -41,6 +42,15 @@ class OrderRequest(BaseModel):
     weight: float
     recipe: dict
 
+class GoogleAttendanceMark(BaseModel):
+    worker_name: str
+    operation_code: str
+    status: str
+    ktu: float
+    hours: int
+    date: str
+    row: int
+
 templates = Jinja2Templates(directory="app/templates")
 
 @asynccontextmanager
@@ -50,16 +60,19 @@ async def lifespan(app: FastAPI):
     
     try:
         from app.bot import bot as b, dp as d
-        from app.database import init_database, sync_workers_from_google
-        from app.google_sheets import init_google_sheets
+        from app.database import init_database
+        from app.google_sheets import init_google_sheets, sync_workers_to_local_db
         
         bot = b
         dp = d
         init_database()
         
         logger.info("📊 Connecting to Google Sheets...")
-        init_google_sheets()
-        sync_workers_from_google()
+        if init_google_sheets():
+            logger.info("✅ Google Sheets connected successfully")
+            sync_workers_to_local_db()
+        else:
+            logger.warning("⚠️ Google Sheets connection failed, continuing with local DB")
         
         from aiogram import Bot
         Bot.set_current(bot)
@@ -115,7 +128,7 @@ async def telegram_webhook(request: Request):
 async def webhook_get():
     return {"message": "Webhook is active", "bot_ready": bot is not None}
 
-# ==================== API ДЛЯ МІНІ-ДОДАТКУ ====================
+# ==================== API ДЛЯ МІНІ-ДОДАТКУ (WEB APP) ====================
 
 @app.get("/workshop/{workshop}", response_class=HTMLResponse)
 async def workshop_page(request: Request, workshop: str):
@@ -127,14 +140,55 @@ async def workshop_page(request: Request, workshop: str):
 async def recipe_page(request: Request):
     return templates.TemplateResponse("recipe.html", {"request": request})
 
+# ==================== API ДЛЯ СИНХРОНІЗАЦІЇ З GOOGLE SHEETS ====================
+
 @app.get("/api/workers/{workshop}")
 async def get_workers(workshop: str, date: str = None):
+    """Отримати працівників з локальної БД (для сумісності)"""
     from app.database import get_workers_by_workshop, get_workers_by_workshop_date
     if date:
         workers = get_workers_by_workshop_date(workshop, date)
     else:
         workers = get_workers_by_workshop(workshop)
     return {"workers": workers}
+
+@app.get("/api/workers-by-date/{operation_code}")
+async def get_workers_by_date(operation_code: str, date: str):
+    """Отримати працівників для конкретної дати та операції з Google Sheets"""
+    from app.google_sheets import get_workers_for_date
+    workers = get_workers_for_date(date, operation_code)
+    # Повертаємо тільки невідмічених
+    not_marked = [w for w in workers if not w['already_marked']]
+    return {"workers": not_marked, "all_workers": workers}
+
+@app.post("/api/mark-attendance")
+async def mark_attendance(mark: GoogleAttendanceMark):
+    """Універсальна відмітка (присутній/відсутній) в Google Sheets"""
+    from app.google_sheets import mark_worker_in_sheet
+    success = mark_worker_in_sheet(
+        worker_name=mark.worker_name,
+        operation_code=mark.operation_code,
+        status=mark.status,
+        ktu=mark.ktu,
+        hours=mark.hours,
+        date_str=mark.date,
+        row=mark.row
+    )
+    return {"ok": success}
+
+@app.get("/api/operations")
+async def get_operations():
+    """Отримати список всіх кодів операцій"""
+    return {"operations": ['601', '602', '603', '475', '1088', '1256']}
+
+@app.get("/api/workers-full-list")
+async def get_workers_full_list():
+    """Отримати повний список працівників з таблиці"""
+    from app.google_sheets import get_all_workers_list
+    workers = get_all_workers_list()
+    return {"workers": workers}
+
+# ==================== API ДЛЯ ЛОКАЛЬНОЇ БД (резерв) ====================
 
 @app.get("/api/all_workers/{workshop}")
 async def get_all_workers(workshop: str):
@@ -189,6 +243,8 @@ async def current_shift():
     from app.database import get_current_shift
     return {"shift_hours": get_current_shift()}
 
+# ==================== API ДЛЯ РЕЦЕПТІВ ====================
+
 @app.post("/api/order")
 async def create_order(order: OrderRequest):
     order_data = {
@@ -230,13 +286,12 @@ async def get_orders():
 
 @app.get("/debug/google")
 async def debug_google():
-    from app.google_sheets import init_google_sheets, load_workers_from_sheets
+    from app.google_sheets import init_google_sheets, get_workers_for_date, get_date_columns
     
     result = {
         "connection": False,
-        "worksheets": [],
-        "workers": [],
-        "workers_count": 0,
+        "date_columns": {},
+        "workers_today": {},
         "errors": []
     }
     
@@ -245,14 +300,14 @@ async def debug_google():
         result["connection"] = conn
         
         if conn:
-            from app.google_sheets import sheet
-            if sheet:
-                worksheets = sheet.worksheets()
-                result["worksheets"] = [ws.title for ws in worksheets]
+            date_columns = get_date_columns()
+            result["date_columns"] = date_columns
             
-            workers = load_workers_from_sheets()
-            result["workers_count"] = len(workers)
-            result["workers"] = workers[:10]
+            # Перевіряємо для кожної операції
+            today = datetime.now().strftime("%Y-%m-%d")
+            for op in ['601', '603', '475', '1088', '1256']:
+                workers = get_workers_for_date(today, op)
+                result["workers_today"][op] = len(workers)
     except Exception as e:
         result["errors"].append(str(e))
     
@@ -272,7 +327,7 @@ async def sync_now():
     success = sync_workers_to_local_db()
     return {"ok": success, "message": "Sync completed" if success else "Sync failed"}
 
-# ==================== СЛУЖБОВІ ====================
+# ==================== СЛУЖБОВІ МАРШРУТИ ====================
 
 @app.get("/health")
 async def health_check():
@@ -291,8 +346,12 @@ async def root():
             "health": "/health",
             "workshop": "/workshop/{DMT|Пакування}",
             "recipe": "/recipe",
+            "workers_by_date": "/api/workers-by-date/{operation_code}?date=YYYY-MM-DD",
+            "mark_attendance": "/api/mark-attendance (POST)",
+            "operations": "/api/operations",
             "debug_google": "/debug/google",
-            "debug_db": "/debug/db"
+            "debug_db": "/debug/db",
+            "sync_now": "/api/sync-now"
         }
     }
 
