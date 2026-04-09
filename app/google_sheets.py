@@ -273,3 +273,76 @@ def get_all_workers_list():
     except Exception as e:
         logger.error(f"Error getting workers list: {e}")
         return []
+
+def load_workers_from_sheets():
+    """Завантажити працівників з Google Sheets (для локальної БД)"""
+    global sheet
+    if sheet is None:
+        if not init_google_sheets():
+            return []
+    
+    try:
+        worksheet = sheet.get_worksheet(0)
+        all_data = worksheet.get_all_values()
+        
+        if len(all_data) <= 6:
+            return []
+        
+        workers = []
+        for row in all_data[6:]:
+            if len(row) < 1 or not row[0]:
+                continue
+            fullname = str(row[0]).strip()
+            if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
+                continue
+            
+            # Визначаємо цех за першим кодом операції в рядку
+            workshop = None
+            for col in range(1, min(len(row), 10)):
+                cell_value = str(row[col]).strip()
+                if cell_value in OPERATION_CODES:
+                    if cell_value in ['601', '602', '603']:
+                        workshop = 'DMT'
+                    else:
+                        workshop = 'Пакування'
+                    break
+            
+            if not workshop:
+                continue
+            
+            workers.append({
+                'fullname': fullname,
+                'workshop': workshop,
+                'default_ktu': 1.0
+            })
+        
+        logger.info(f"Loaded {len(workers)} workers from Google Sheets")
+        return workers
+    except Exception as e:
+        logger.error(f"Error loading workers: {e}")
+        return []
+
+def sync_workers_to_local_db():
+    """Синхронізація працівників з Google Sheets в локальну БД"""
+    from app.database import add_worker, get_all_workers_by_shop
+    
+    workers = load_workers_from_sheets()
+    if not workers:
+        logger.warning("No workers from Google Sheets")
+        return False
+    
+    existing = {}
+    for workshop in ['DMT', 'Пакування']:
+        for w in get_all_workers_by_shop(workshop):
+            existing[f"{w['workshop']}|{w['fullname']}"] = True
+    
+    added = 0
+    for w in workers:
+        key = f"{w['workshop']}|{w['fullname']}"
+        if key not in existing:
+            if add_worker(w['fullname'], w['workshop']):
+                added += 1
+                logger.info(f"➕ Added worker: {w['fullname']} ({w['workshop']})")
+    
+    logger.info(f"✅ Synced {added} new workers from Google Sheets")
+    return True
