@@ -2,7 +2,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,7 +32,6 @@ def init_google_sheets():
         
         creds = None
         
-        # Спосіб 1: файл credentials.json
         creds_path = 'credentials.json'
         if not os.path.exists(creds_path):
             creds_path = '/opt/render/project/src/credentials.json'
@@ -44,7 +43,6 @@ def init_google_sheets():
             except Exception as e:
                 logger.error(f"Failed to load credentials from file: {e}")
         
-        # Спосіб 2: змінна середовища
         if not creds:
             creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
             if creds_json:
@@ -69,7 +67,10 @@ def init_google_sheets():
         return False
 
 def get_date_columns():
-    """Визначає колонки для кожної дати в таблиці (рядок 5)"""
+    """
+    Визначає колонки для кожної дати в таблиці
+    Структура: BCD - 1 число, EFG - 2 число, HIJ - 3 число, і т.д.
+    """
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -80,23 +81,33 @@ def get_date_columns():
         all_data = worksheet.get_all_values()
         
         if len(all_data) < 5:
-            logger.warning("Table has less than 5 rows")
             return {}
         
         date_columns = {}
-        header_row = all_data[4]  # рядок 5 (індекс 4)
+        header_row = all_data[4]  # рядок 5
         current_year = datetime.now().year
         current_month = datetime.now().month
         
-        for col_idx, cell in enumerate(header_row):
-            if cell and str(cell).strip().isdigit():
-                day_num = int(str(cell).strip())
-                try:
-                    date_obj = datetime(current_year, current_month, day_num)
-                    date_str = date_obj.strftime("%Y-%m-%d")
-                    date_columns[date_str] = col_idx
-                except ValueError:
-                    pass
+        # Колонки починаються з B (індекс 1)
+        for day_num in range(1, 32):  # до 31 дня
+            # Кожен день займає 3 колонки: код, години, КТУ/статус
+            col_idx = 1 + (day_num - 1) * 3  # B=1, E=4, H=7, ...
+            
+            if col_idx < len(header_row):
+                # Перевіряємо чи є дата в цій колонці
+                cell_value = str(header_row[col_idx]).strip() if col_idx < len(header_row) else ''
+                if cell_value == str(day_num) or cell_value == str(day_num):
+                    try:
+                        date_obj = datetime(current_year, current_month, day_num)
+                        date_str = date_obj.strftime("%Y-%m-%d")
+                        date_columns[date_str] = {
+                            'code_col': col_idx,      # колонка з кодом операції
+                            'hours_col': col_idx + 1, # колонка з годинами
+                            'value_col': col_idx + 2  # колонка з КТУ/статусом
+                        }
+                        logger.info(f"📅 Date {date_str}: code_col={col_idx}, value_col={col_idx+2}")
+                    except ValueError:
+                        pass
         
         logger.info(f"📅 Found {len(date_columns)} date columns")
         return date_columns
@@ -104,8 +115,18 @@ def get_date_columns():
         logger.error(f"Error getting date columns: {e}")
         return {}
 
-def get_workers_for_date(date_str: str, operation_code: str):
-    """Отримати список працівників для конкретної дати та операції"""
+def get_previous_day_columns(current_date_str: str, date_columns: dict):
+    """Отримати колонки попереднього дня (для копіювання коду операції)"""
+    current_date = datetime.strptime(current_date_str, "%Y-%m-%d")
+    prev_date = current_date - timedelta(days=1)
+    prev_date_str = prev_date.strftime("%Y-%m-%d")
+    
+    if prev_date_str in date_columns:
+        return date_columns[prev_date_str]
+    return None
+
+def get_workers_for_date(date_str: str, operation_code: str = None):
+    """Отримати список працівників для конкретної дати"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -120,10 +141,10 @@ def get_workers_for_date(date_str: str, operation_code: str):
             logger.warning(f"Date {date_str} not found in sheet")
             return []
         
-        target_col = date_columns[date_str]
+        current_cols = date_columns[date_str]
+        prev_cols = get_previous_day_columns(date_str, date_columns)
         
         workers = []
-        # Починаємо з рядка 7 (індекс 6) - дані працівників
         for row_idx, row in enumerate(all_data[6:], start=7):
             if len(row) < 1 or not row[0]:
                 continue
@@ -132,15 +153,24 @@ def get_workers_for_date(date_str: str, operation_code: str):
             if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
                 continue
             
-            if target_col >= len(row):
+            # Беремо код операції з попереднього дня (або поточного, якщо немає попереднього)
+            code_col = current_cols['code_col']
+            if prev_cols and code_col < len(row):
+                # Якщо є попередній день, копіюємо код з нього
+                prev_code_col = prev_cols['code_col']
+                if prev_code_col < len(row):
+                    operation_code = str(row[prev_code_col]).strip()
+                else:
+                    operation_code = str(row[code_col]).strip() if code_col < len(row) else ''
+            else:
+                operation_code = str(row[code_col]).strip() if code_col < len(row) else ''
+            
+            # Перевіряємо чи код операції валідний
+            if operation_code not in OPERATION_CODES:
                 continue
             
-            cell_code = str(row[target_col]).strip()
-            if cell_code != operation_code:
-                continue
-            
-            # Перевіряємо чи вже є відмітка
-            value_col = target_col + 1
+            # Перевіряємо чи вже є відмітка в колонці значень
+            value_col = current_cols['value_col']
             already_marked = False
             existing_status = None
             existing_ktu = None
@@ -177,7 +207,7 @@ def get_workers_for_date(date_str: str, operation_code: str):
                 'existing_ktu': existing_ktu
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers for {operation_code} on {date_str}")
+        logger.info(f"📋 Loaded {len(workers)} workers for {date_str}")
         return workers
     except Exception as e:
         logger.error(f"Error loading workers: {e}")
@@ -198,29 +228,62 @@ def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu
             logger.error(f"Date {date_str} not found")
             return False
         
-        target_col = date_columns[date_str]
-        value_col = target_col + 1
+        current_cols = date_columns[date_str]
+        value_col = current_cols['value_col']
         
         # Визначаємо значення для запису
         if status and status != 'present':
-            # Для відсутніх - записуємо статус
             value = STATUS_TO_SHEET.get(status, 'вщ')
         else:
-            # Для присутніх: години та КТУ
             hours_str = str(hours) if hours else '9'
             ktu_str = str(ktu).replace('.', ',') if ktu else '1'
             value = f"{hours_str}\n{ktu_str}"
         
-        # Оновлюємо комірку
+        # Оновлюємо комірку з КТУ/статусом
         worksheet.update_cell(row, value_col + 1, value)
         logger.info(f"✅ Updated: row {row}, col {value_col + 1} = {value}")
         
-        # Зберігаємо в аркуш історії
+        # Якщо це перший день місяця, також записуємо код операції та години
+        # (для наступних днів вони копіюються з попереднього)
+        current_date = datetime.strptime(date_str, "%Y-%m-%d")
+        if current_date.day == 1:
+            code_col = current_cols['code_col']
+            hours_col = current_cols['hours_col']
+            
+            if code_col < 100:
+                worksheet.update_cell(row, code_col + 1, operation_code)
+                logger.info(f"✅ Updated code: row {row}, col {code_col + 1} = {operation_code}")
+            
+            if hours_col < 100 and hours:
+                worksheet.update_cell(row, hours_col + 1, hours)
+                logger.info(f"✅ Updated hours: row {row}, col {hours_col + 1} = {hours}")
+        
         save_to_history(date_str, worker_name, operation_code, status, ktu, hours)
         return True
     except Exception as e:
         logger.error(f"Error marking worker: {e}")
         return False
+
+def save_attendance_to_sheets(worker_id: int, status: str, ktu: float, shift_hours: int):
+    """Зберігає відмітку в Google Sheets (для сумісності з database.py)"""
+    from app.database import get_worker_by_id
+    
+    worker = get_worker_by_id(worker_id)
+    if not worker:
+        logger.error(f"Worker {worker_id} not found")
+        return False
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    return mark_worker_in_sheet(
+        worker_name=worker['fullname'],
+        operation_code=worker.get('operation_code', '601'),
+        status=status,
+        ktu=ktu,
+        hours=shift_hours,
+        date_str=today,
+        row=worker.get('row', 7)
+    )
 
 def save_to_history(date_str: str, worker_name: str, operation_code: str, status: str, ktu: float, hours: int):
     """Зберігає в аркуш історії"""
@@ -258,32 +321,8 @@ def save_to_history(date_str: str, worker_name: str, operation_code: str, status
     except Exception as e:
         logger.error(f"Error saving to history: {e}")
 
-def get_all_workers_list():
-    """Отримати список всіх працівників з таблиці"""
-    global sheet
-    if sheet is None:
-        if not init_google_sheets():
-            return []
-    
-    try:
-        worksheet = sheet.get_worksheet(0)
-        all_data = worksheet.get_all_values()
-        
-        workers = []
-        for row in all_data[6:]:  # починаємо з рядка 7
-            if len(row) < 1 or not row[0]:
-                continue
-            fullname = str(row[0]).strip()
-            if fullname and fullname != 'Аутсорс' and not fullname.startswith('Бригадир'):
-                workers.append({'fullname': fullname})
-        
-        return workers
-    except Exception as e:
-        logger.error(f"Error getting workers list: {e}")
-        return []
-
 def load_workers_from_sheets():
-    """Завантажити працівників для локальної БД (з визначенням цеху за кодом операції)"""
+    """Завантажити працівників для локальної БД"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -293,35 +332,44 @@ def load_workers_from_sheets():
         worksheet = sheet.get_worksheet(0)
         all_data = worksheet.get_all_values()
         
+        date_columns = get_date_columns()
+        if not date_columns:
+            return []
+        
+        # Беремо перший день місяця для визначення кодів операцій
+        first_day = min(date_columns.keys())
+        first_cols = date_columns[first_day]
+        code_col = first_cols['code_col']
+        
         workers = []
-        for row in all_data[6:]:  # починаємо з рядка 7
+        for row_idx, row in enumerate(all_data[6:], start=7):
             if len(row) < 1 or not row[0]:
                 continue
             fullname = str(row[0]).strip()
             if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
                 continue
             
-            # Визначаємо цех за першим кодом операції в рядку
-            workshop = None
-            for col in range(1, min(len(row), 10)):
-                cell_value = str(row[col]).strip()
-                if cell_value in OPERATION_CODES:
-                    if cell_value in ['601', '602', '603']:
-                        workshop = 'DMT'
-                    else:
-                        workshop = 'Пакування'
-                    break
+            # Отримуємо код операції з першого дня
+            operation_code = str(row[code_col]).strip() if code_col < len(row) else ''
             
-            if not workshop:
+            if operation_code not in OPERATION_CODES:
                 continue
             
+            # Визначаємо цех за кодом
+            if operation_code in ['601', '602', '603']:
+                workshop = 'DMT'
+            else:
+                workshop = 'Пакування'
+            
             workers.append({
+                'id': row_idx,
                 'fullname': fullname,
                 'workshop': workshop,
+                'operation_code': operation_code,
                 'default_ktu': 1.0
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets for local DB")
+        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets")
         return workers
     except Exception as e:
         logger.error(f"Error loading workers: {e}")
@@ -329,7 +377,7 @@ def load_workers_from_sheets():
 
 def sync_workers_to_local_db():
     """Синхронізація працівників з Google Sheets в локальну БД"""
-    from app.database import add_worker, get_all_workers_by_shop
+    from app.database import add_worker_with_code, get_all_workers
     
     workers = load_workers_from_sheets()
     if not workers:
@@ -337,17 +385,16 @@ def sync_workers_to_local_db():
         return False
     
     existing = {}
-    for workshop in ['DMT', 'Пакування']:
-        for w in get_all_workers_by_shop(workshop):
-            existing[f"{w['workshop']}|{w['fullname']}"] = True
+    for w in get_all_workers():
+        existing[f"{w.get('operation_code', '')}|{w['fullname']}"] = True
     
     added = 0
     for w in workers:
-        key = f"{w['workshop']}|{w['fullname']}"
+        key = f"{w.get('operation_code', '')}|{w['fullname']}"
         if key not in existing:
-            if add_worker(w['fullname'], w['workshop']):
+            if add_worker_with_code(w['fullname'], w.get('operation_code', '601'), w['workshop']):
                 added += 1
-                logger.info(f"➕ Added worker: {w['fullname']} ({w['workshop']})")
+                logger.info(f"➕ Added worker: {w['fullname']} ({w['workshop']}, код: {w.get('operation_code', '601')})")
     
     logger.info(f"✅ Synced {added} new workers from Google Sheets")
     return True
