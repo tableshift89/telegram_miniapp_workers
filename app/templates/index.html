@@ -75,8 +75,10 @@
             gap: 8px;
             transition: all 0.3s;
         }
-        .worker-card.removed {
-            display: none;
+        .worker-card.removed { display: none; }
+        .worker-card.outsourcer {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
         }
         .worker-name {
             font-weight: 600;
@@ -84,6 +86,21 @@
             color: #333;
             flex: 2;
             min-width: 120px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .outsourcer-badge {
+            background: #f59e0b;
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
         .worker-controls {
             display: flex;
@@ -133,9 +150,7 @@
             color: white;
             border: none;
         }
-        .absent-mode-active {
-            background: #10b981 !important;
-        }
+        .absent-mode-active { background: #10b981 !important; }
         .connection-status {
             margin-top: 16px;
             padding: 8px;
@@ -268,7 +283,6 @@
 
             async function markPresent(worker) {
                 try {
-                    // Відправляємо дані про присутність
                     const response = await fetch('/api/sync-shift', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -288,13 +302,11 @@
                     const result = await response.json();
                     if (result.ok) {
                         showToast(`✅ ${worker.fullname} відмічено!`, 'success');
-                        // Видаляємо працівника зі списку
                         const card = document.querySelector(`.worker-card[data-row="${worker.row}"]`);
                         if (card) {
                             card.classList.add('removed');
                             setTimeout(() => card.remove(), 300);
                         }
-                        // Видаляємо з масиву
                         workersData = workersData.filter(w => w.row !== worker.row);
                     } else {
                         showToast(`❌ Помилка: ${result.error}`, 'error');
@@ -317,6 +329,9 @@
                 workersData.forEach(worker => {
                     const card = document.createElement('div');
                     card.className = 'worker-card';
+                    if (worker.isOutsourcer) {
+                        card.classList.add('outsourcer');
+                    }
                     card.dataset.row = worker.row;
 
                     let valueHtml = '';
@@ -344,7 +359,10 @@
                     }
 
                     card.innerHTML = `
-                        <span class="worker-name">${escapeHtml(worker.fullname)}</span>
+                        <span class="worker-name">
+                            ${worker.isOutsourcer ? '<span class="outsourcer-badge">А</span>' : ''}
+                            ${escapeHtml(worker.fullname)}
+                        </span>
                         <div class="worker-controls">
                             <select class="to-select" data-row="${worker.row}" style="min-width:65px;">
                                 <option value="">ТО</option>
@@ -361,7 +379,6 @@
             }
 
             function attachEventHandlers() {
-                // TO selects
                 document.querySelectorAll('.to-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
@@ -370,7 +387,6 @@
                     };
                 });
                 
-                // Hours inputs
                 document.querySelectorAll('.hours-input').forEach(input => {
                     input.onchange = (e) => {
                         const row = parseInt(input.dataset.row);
@@ -379,7 +395,6 @@
                     };
                 });
                 
-                // KTU selects
                 document.querySelectorAll('.ktu-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
@@ -391,7 +406,6 @@
                     };
                 });
                 
-                // Status selects
                 document.querySelectorAll('.status-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
@@ -403,7 +417,6 @@
                     };
                 });
                 
-                // Present buttons (зелений кружечок)
                 document.querySelectorAll('.present-btn').forEach(btn => {
                     btn.onclick = (e) => {
                         e.preventDefault();
@@ -469,7 +482,6 @@
                 });
             }
 
-            // Календар
             flatpickr("#date-picker", {
                 locale: "uk",
                 dateFormat: "Y-m-d",
@@ -483,7 +495,6 @@
                 }
             });
 
-            // Кнопка "Відмітити відсутніх"
             document.getElementById('absent-mode-btn').onclick = () => {
                 absentMode = !absentMode;
                 const btn = document.getElementById('absent-mode-btn');
