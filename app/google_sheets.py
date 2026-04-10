@@ -17,7 +17,6 @@ gc = None
 sheet = None
 
 def init_google_sheets():
-    """Ініціалізація підключення до Google Sheets"""
     global gc, sheet
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -53,10 +52,6 @@ def init_google_sheets():
         return False
 
 def get_date_columns():
-    """
-    Визначає колонки для кожної дати в таблиці (рядок 2)
-    Формат: злиті комірки C,D,E - 1 число, F,G,H - 2 число, тощо
-    """
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -85,9 +80,9 @@ def get_date_columns():
                     date_str = date_obj.strftime("%Y-%m-%d")
                     
                     date_columns[date_str] = {
-                        'start_col': col_idx,
-                        'hours_col': col_idx + 1,
-                        'value_col': col_idx + 2,
+                        'start_col': col_idx,      # колонка ТО (куди пишемо код або статус)
+                        'hours_col': col_idx + 1,  # колонка з годинами
+                        'value_col': col_idx + 2,  # колонка з КТУ (для присутніх)
                         'day': int(cell_value)
                     }
                     col_idx += 3
@@ -103,10 +98,6 @@ def get_date_columns():
         return {}
 
 def get_shift_data(date_str: str):
-    """
-    Отримати дані за конкретну дату (ПІБ з колонки B, індекс 1)
-    Визначає аутсорсерів (працівники після рядка "Аутсорс")
-    """
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -121,36 +112,30 @@ def get_shift_data(date_str: str):
             return {"ok": False, "error": f"Date {date_str} not found"}
         
         cols = date_columns[date_str]
-        start_col = cols['start_col']
-        hours_col = cols['hours_col']
-        value_col = cols['value_col']
+        start_col = cols['start_col']   # ТО колонка
+        hours_col = cols['hours_col']   # Години
+        value_col = cols['value_col']   # КТУ
         
-        # Отримуємо дані попереднього дня
         prev_date = datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=1)
         prev_date_str = prev_date.strftime("%Y-%m-%d")
         prev_cols = date_columns.get(prev_date_str)
         
         workers = []
-        is_outsourcer_section = False  # Флаг для визначення секції аутсорсерів
+        is_outsourcer_section = False
         
-        # Дані починаються з рядка 5 (індекс 4)
-        # ПІБ в колонці B (індекс 1)
         for row_idx, row in enumerate(all_data[4:], start=5):
             if len(row) < 2:
                 continue
             
-            # Перевіряємо чи це рядок "Аутсорс" (початок секції аутсорсерів)
             first_col = str(row[1]).strip() if len(row) > 1 else ''
             if first_col == 'Аутсорс':
                 is_outsourcer_section = True
-                logger.info(f"📋 Outsourcer section starts at row {row_idx}")
                 continue
             
             if not row[1]:
                 continue
             
             fullname = str(row[1]).strip()
-            # Пропускаємо пусті рядки та заголовки бригадирів
             if not fullname or fullname.startswith('Бригадир'):
                 continue
             
@@ -160,7 +145,7 @@ def get_shift_data(date_str: str):
             # Поточні значення
             current_to = str(row[start_col]).strip() if start_col < len(row) else ''
             current_hours = str(row[hours_col]).strip() if hours_col < len(row) else ''
-            current_value = str(row[value_col]).strip() if value_col < len(row) else ''
+            current_ktu = str(row[value_col]).strip() if value_col < len(row) else ''
             
             # Пропозиції з попереднього дня
             suggested_to = ''
@@ -173,23 +158,25 @@ def get_shift_data(date_str: str):
                 if prev_hours_col < len(row):
                     suggested_hours = str(row[prev_hours_col]).strip()
             
-            # Визначаємо статус або КТУ
+            # Визначаємо статус (якщо в колонці ТО є статус)
             status = None
             ktu = None
-            current_value_lower = current_value.lower()
+            current_to_lower = current_to.lower()
             
-            if current_value_lower in ['вщ', 'пр', 'на', 'нз', 'в']:
-                if current_value_lower in ['вщ', 'в']:
-                    status = 'Вщ'
-                elif current_value_lower == 'пр':
+            if current_to_lower in ['вщ', 'пр', 'на', 'нз', 'в']:
+                if current_to_lower in ['вщ', 'в']:
+                    status = 'Вщ' if current_to_lower == 'вщ' else 'В'
+                elif current_to_lower == 'пр':
                     status = 'Пр'
-                elif current_value_lower == 'на':
+                elif current_to_lower == 'на':
                     status = 'На'
-                elif current_value_lower == 'нз':
+                elif current_to_lower == 'нз':
                     status = 'Нз'
+                current_to = ''  # Очищаємо ТО, бо це статус
             else:
+                # Спроба визначити КТУ
                 try:
-                    ktu = float(current_value.replace(',', '.')) if current_value else None
+                    ktu = float(current_ktu.replace(',', '.')) if current_ktu else None
                 except:
                     pass
             
@@ -202,18 +189,15 @@ def get_shift_data(date_str: str):
                 'ktu': ktu,
                 'suggested_to': suggested_to,
                 'suggested_hours': suggested_hours,
-                'isOutsourcer': is_outsourcer_section  # Додаємо прапорець аутсорсера
+                'isOutsourcer': is_outsourcer_section
             })
         
-        outsourcer_count = sum(1 for w in workers if w['isOutsourcer'])
-        logger.info(f"📋 Loaded {len(workers)} workers for {date_str} (outsourcers: {outsourcer_count})")
         return {"ok": True, "workers": workers, "columns": cols}
     except Exception as e:
         logger.error(f"Error getting shift data: {e}")
         return {"ok": False, "error": str(e)}
 
 def update_shift_data(date_str: str, workers_data: list):
-    """Оновлює дані в таблиці за конкретну дату"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -227,31 +211,38 @@ def update_shift_data(date_str: str, workers_data: list):
             return {"ok": False, "error": f"Date {date_str} not found"}
         
         cols = date_columns[date_str]
-        start_col = cols['start_col']
-        hours_col = cols['hours_col']
-        value_col = cols['value_col']
+        start_col = cols['start_col']   # ТО колонка (сюди пишемо код ТО або статус)
+        hours_col = cols['hours_col']   # Години
+        value_col = cols['value_col']   # КТУ (тільки для присутніх)
         
         updated = 0
         for worker in workers_data:
             row = worker['row']
             
-            if worker.get('to'):
-                worksheet.update_cell(row, start_col + 1, worker['to'])
-                logger.info(f"✅ Updated TO: row {row}, col {start_col + 1} = {worker['to']}")
-            
-            if worker.get('hours'):
-                worksheet.update_cell(row, hours_col + 1, worker['hours'])
-                logger.info(f"✅ Updated hours: row {row}, col {hours_col + 1} = {worker['hours']}")
-            
+            # Якщо є статус - пишемо його в ТО колонку
             if worker.get('status'):
-                status_map = {'Вщ': 'вщ', 'Пр': 'пр', 'На': 'на', 'Нз': 'нз'}
+                status_map = {'Вщ': 'вщ', 'В': 'в', 'Пр': 'пр', 'На': 'на', 'Нз': 'нз'}
                 value = status_map.get(worker['status'], 'вщ')
-                worksheet.update_cell(row, value_col + 1, value)
-                logger.info(f"✅ Updated status: row {row}, col {value_col + 1} = {value}")
-            elif worker.get('ktu') is not None:
-                value = str(worker['ktu']).replace('.', ',')
-                worksheet.update_cell(row, value_col + 1, value)
-                logger.info(f"✅ Updated KTU: row {row}, col {value_col + 1} = {value}")
+                worksheet.update_cell(row, start_col + 1, value)
+                logger.info(f"✅ Updated status in TO column: row {row}, col {start_col + 1} = {value}")
+                # Очищаємо КТУ
+                worksheet.update_cell(row, value_col + 1, '')
+            else:
+                # Якщо немає статусу - пишемо ТО (зберігаємо повністю, включаючи /)
+                if worker.get('to'):
+                    worksheet.update_cell(row, start_col + 1, worker['to'])
+                    logger.info(f"✅ Updated TO: row {row}, col {start_col + 1} = {worker['to']}")
+                
+                # Пишемо години (зберігаємо як текст)
+                if worker.get('hours'):
+                    worksheet.update_cell(row, hours_col + 1, worker['hours'])
+                    logger.info(f"✅ Updated hours: row {row}, col {hours_col + 1} = {worker['hours']}")
+                
+                # Пишемо КТУ
+                if worker.get('ktu') is not None:
+                    value = str(worker['ktu']).replace('.', ',')
+                    worksheet.update_cell(row, value_col + 1, value)
+                    logger.info(f"✅ Updated KTU: row {row}, col {value_col + 1} = {value}")
             
             updated += 1
         
@@ -262,7 +253,6 @@ def update_shift_data(date_str: str, workers_data: list):
         return {"ok": False, "error": str(e)}
 
 def save_to_history(date_str: str, workers_data: list):
-    """Зберігає в аркуш історії"""
     global sheet
     if sheet is None:
         return
@@ -273,18 +263,19 @@ def save_to_history(date_str: str, workers_data: list):
             ws = sheet.worksheet(history_name)
         except:
             ws = sheet.add_worksheet(title=history_name, rows=10000, cols=20)
-            ws.append_row(['Дата', 'Час', 'ПІБ', 'ТО', 'Години', 'КТУ/Статус', 'Аутсорсер'])
+            ws.append_row(['Дата', 'Час', 'ПІБ', 'ТО/Статус', 'Години', 'КТУ', 'Аутсорсер'])
         
         now = datetime.now()
         for worker in workers_data:
-            value = worker.get('status') if worker.get('status') else worker.get('ktu')
+            to_value = worker.get('status') if worker.get('status') else worker.get('to', '')
+            ktu_value = worker.get('ktu') if worker.get('ktu') else ''
             ws.append_row([
                 date_str,
                 now.strftime("%H:%M:%S"),
                 worker.get('fullname', ''),
-                worker.get('to', ''),
+                to_value,
                 worker.get('hours', ''),
-                value if value else '',
+                ktu_value,
                 'Так' if worker.get('isOutsourcer') else ''
             ])
         logger.info(f"📝 Saved {len(workers_data)} records to history")
@@ -292,19 +283,16 @@ def save_to_history(date_str: str, workers_data: list):
         logger.error(f"Error saving to history: {e}")
 
 def check_connection():
-    """Перевіряє підключення до Google Sheets"""
     global sheet
     if sheet is None:
         return init_google_sheets()
     return True
 
 def sync_workers_to_local_db():
-    """Синхронізація працівників з Google Sheets в локальну БД"""
     from app.database import add_worker, get_all_workers_by_shop
     
     workers = load_workers_from_sheets()
     if not workers:
-        logger.warning("No workers from Google Sheets to sync")
         return False
     
     existing = {}
@@ -318,13 +306,10 @@ def sync_workers_to_local_db():
         if key not in existing:
             if add_worker(w['fullname'], w['workshop']):
                 added += 1
-                logger.info(f"➕ Added worker: {w['fullname']} ({w['workshop']})")
     
-    logger.info(f"✅ Synced {added} new workers from Google Sheets")
     return added > 0
 
 def load_workers_from_sheets():
-    """Завантажити працівників для локальної БД (ПІБ з колонки B, індекс 1)"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -363,13 +348,12 @@ def load_workers_from_sheets():
             
             operation_code = str(row[start_col]).strip() if start_col < len(row) else ''
             
-            if operation_code not in OPERATION_CODES:
-                continue
-            
             if operation_code in ['601', '602', '603']:
                 workshop = 'DMT'
-            else:
+            elif operation_code in ['475', '1088', '1256']:
                 workshop = 'Пакування'
+            else:
+                continue
             
             workers.append({
                 'id': row_idx,
@@ -380,70 +364,7 @@ def load_workers_from_sheets():
                 'isOutsourcer': is_outsourcer_section
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets")
         return workers
     except Exception as e:
         logger.error(f"Error loading workers: {e}")
         return []
-
-def save_attendance_to_sheets(worker_id: int, status: str, ktu: float, shift_hours: int):
-    """Зберігає відмітку в Google Sheets (для сумісності з database.py)"""
-    from app.database import get_worker_by_id
-    
-    worker = get_worker_by_id(worker_id)
-    if not worker:
-        logger.error(f"Worker {worker_id} not found")
-        return False
-    
-    today = datetime.now().strftime("%Y-%m-%d")
-    
-    return mark_worker_in_sheet(
-        worker_name=worker['fullname'],
-        operation_code=worker.get('operation_code', '601'),
-        status=status,
-        ktu=ktu,
-        hours=shift_hours,
-        date_str=today,
-        row=worker.get('row', 5),
-        isOutsourcer=worker.get('isOutsourcer', False)
-    )
-
-def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu: float, hours: int, date_str: str, row: int, isOutsourcer: bool = False):
-    """Записує відмітку в таблицю"""
-    global sheet
-    if sheet is None:
-        if not init_google_sheets():
-            return False
-    
-    try:
-        worksheet = sheet.get_worksheet(0)
-        date_columns = get_date_columns()
-        
-        if date_str not in date_columns:
-            logger.error(f"Date {date_str} not found")
-            return False
-        
-        cols = date_columns[date_str]
-        start_col = cols['start_col']
-        hours_col = cols['hours_col']
-        value_col = cols['value_col']
-        
-        if operation_code:
-            worksheet.update_cell(row, start_col + 1, operation_code)
-        
-        if hours:
-            worksheet.update_cell(row, hours_col + 1, hours)
-        
-        if status and status != 'present':
-            status_map = {'Вщ': 'вщ', 'Пр': 'пр', 'На': 'на', 'Нз': 'нз'}
-            value = status_map.get(status, 'вщ')
-            worksheet.update_cell(row, value_col + 1, value)
-        elif ktu:
-            value = str(ktu).replace('.', ',')
-            worksheet.update_cell(row, value_col + 1, value)
-        
-        logger.info(f"✅ Marked: {worker_name} at row {row} (outsourcer: {isOutsourcer})")
-        return True
-    except Exception as e:
-        logger.error(f"Error marking worker: {e}")
-        return False
