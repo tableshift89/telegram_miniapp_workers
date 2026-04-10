@@ -12,11 +12,6 @@ SPREADSHEET_ID = '1TZMudoqr2GbOZCbfWSWJLqVZ67pZCck766OyDAD11pU'
 # Коди операцій
 OPERATION_CODES = ['601', '602', '603', '475', '1088', '1256']
 
-# Мапінг статусів
-STATUS_MAPPING = {
-    'Вщ': 'Вщ', 'Пр': 'Пр', 'На': 'На', 'Нз': 'Нз', 'В': 'Вщ'
-}
-
 # Глобальні змінні
 gc = None
 sheet = None
@@ -29,7 +24,6 @@ def init_google_sheets():
         
         creds = None
         
-        # Спосіб 1: файл credentials.json
         creds_path = 'credentials.json'
         if not os.path.exists(creds_path):
             creds_path = '/opt/render/project/src/credentials.json'
@@ -38,7 +32,6 @@ def init_google_sheets():
             creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
             logger.info(f"✅ Credentials loaded from {creds_path}")
         
-        # Спосіб 2: змінна середовища
         if not creds:
             creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
             if creds_json:
@@ -62,7 +55,7 @@ def init_google_sheets():
 def get_date_columns():
     """
     Визначає колонки для кожної дати в таблиці (рядок 2)
-    Формат: злиті комірки C,D,E - 1 число, F,G,H - 2 число, I,J,K - 3 число, і т.д.
+    Формат: злиті комірки C,D,E - 1 число, F,G,H - 2 число, тощо
     """
     global sheet
     if sheet is None:
@@ -77,30 +70,27 @@ def get_date_columns():
             return {}
         
         date_columns = {}
-        header_row = all_data[1]  # рядок 2 (індекс 1)
+        header_row = all_data[1]
         current_year = datetime.now().year
         current_month = datetime.now().month
         
-        # Пошук дат у злитих комірках
         col_idx = 2  # починаємо з колонки C (індекс 2)
         
         while col_idx < len(header_row):
             cell_value = str(header_row[col_idx]).strip() if col_idx < len(header_row) else ''
             
-            # Перевіряємо чи це число (день місяця)
             if cell_value.isdigit():
                 try:
                     date_obj = datetime(current_year, current_month, int(cell_value))
                     date_str = date_obj.strftime("%Y-%m-%d")
                     
                     date_columns[date_str] = {
-                        'start_col': col_idx,      # початкова колонка (TO)
-                        'hours_col': col_idx + 1,  # колонка з годинами
-                        'value_col': col_idx + 2,  # колонка з КТУ/статусом
+                        'start_col': col_idx,
+                        'hours_col': col_idx + 1,
+                        'value_col': col_idx + 2,
                         'day': int(cell_value)
                     }
-                    logger.info(f"📅 Date {date_str}: start_col={col_idx}")
-                    col_idx += 3  # переходимо до наступної дати (3 колонки)
+                    col_idx += 3
                 except ValueError:
                     col_idx += 1
             else:
@@ -113,13 +103,7 @@ def get_date_columns():
         return {}
 
 def get_shift_data(date_str: str):
-    """
-    Отримати дані за конкретну дату:
-    - список працівників
-    - TO (технологічна операція)
-    - години
-    - КТУ або статус
-    """
+    """Отримати дані за конкретну дату (ПІБ з колонки B, індекс 1)"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -138,19 +122,23 @@ def get_shift_data(date_str: str):
         hours_col = cols['hours_col']
         value_col = cols['value_col']
         
-        # Отримуємо дані попереднього дня (для пропозиції TO та годин)
+        # Отримуємо дані попереднього дня
         prev_date = datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=1)
         prev_date_str = prev_date.strftime("%Y-%m-%d")
         prev_cols = date_columns.get(prev_date_str)
         
         workers = []
-        # Починаємо з рядка 5 (індекс 4) - дані працівників
+        # Дані починаються з рядка 5 (індекс 4)
+        # ПІБ в колонці B (індекс 1)
         for row_idx, row in enumerate(all_data[4:], start=5):
-            if len(row) < 1 or not row[0]:
+            if len(row) < 2 or not row[1]:
                 continue
             
-            fullname = str(row[0]).strip()
+            fullname = str(row[1]).strip()  # ПІБ з колонки B
             if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
+                continue
+            
+            if start_col >= len(row):
                 continue
             
             # Поточні значення
@@ -200,16 +188,14 @@ def get_shift_data(date_str: str):
                 'suggested_hours': suggested_hours
             })
         
+        logger.info(f"📋 Loaded {len(workers)} workers for {date_str}")
         return {"ok": True, "workers": workers, "columns": cols}
     except Exception as e:
         logger.error(f"Error getting shift data: {e}")
         return {"ok": False, "error": str(e)}
 
 def update_shift_data(date_str: str, workers_data: list):
-    """
-    Оновлює дані в таблиці за конкретну дату
-    workers_data: [{'row': 5, 'to': '601', 'hours': '9', 'status': None, 'ktu': 1.1}, ...]
-    """
+    """Оновлює дані в таблиці за конкретну дату"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -223,25 +209,22 @@ def update_shift_data(date_str: str, workers_data: list):
             return {"ok": False, "error": f"Date {date_str} not found"}
         
         cols = date_columns[date_str]
-        start_col = cols['start_col']      # колонка з TO
-        hours_col = cols['hours_col']      # колонка з годинами
-        value_col = cols['value_col']      # колонка з КТУ/статусом
+        start_col = cols['start_col']
+        hours_col = cols['hours_col']
+        value_col = cols['value_col']
         
         updated = 0
         for worker in workers_data:
             row = worker['row']
             
-            # Оновлюємо TO (технологічну операцію)
             if worker.get('to'):
                 worksheet.update_cell(row, start_col + 1, worker['to'])
                 logger.info(f"✅ Updated TO: row {row}, col {start_col + 1} = {worker['to']}")
             
-            # Оновлюємо години
             if worker.get('hours'):
                 worksheet.update_cell(row, hours_col + 1, worker['hours'])
                 logger.info(f"✅ Updated hours: row {row}, col {hours_col + 1} = {worker['hours']}")
             
-            # Оновлюємо КТУ або статус
             if worker.get('status'):
                 status_map = {'Вщ': 'вщ', 'Пр': 'пр', 'На': 'на', 'Нз': 'нз'}
                 value = status_map.get(worker['status'], 'вщ')
@@ -254,9 +237,7 @@ def update_shift_data(date_str: str, workers_data: list):
             
             updated += 1
         
-        # Зберігаємо в історію
         save_to_history(date_str, workers_data)
-        
         return {"ok": True, "updated": updated}
     except Exception as e:
         logger.error(f"Error updating shift data: {e}")
@@ -321,10 +302,10 @@ def sync_workers_to_local_db():
                 logger.info(f"➕ Added worker: {w['fullname']} ({w['workshop']})")
     
     logger.info(f"✅ Synced {added} new workers from Google Sheets")
-    return True
+    return added > 0
 
 def load_workers_from_sheets():
-    """Завантажити працівників для локальної БД"""
+    """Завантажити працівників для локальної БД (ПІБ з колонки B, індекс 1)"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -338,20 +319,21 @@ def load_workers_from_sheets():
         if not date_columns:
             return []
         
-        # Беремо перший день місяця для визначення кодів операцій
         first_day = min(date_columns.keys())
         first_cols = date_columns[first_day]
         start_col = first_cols['start_col']
         
         workers = []
+        # Дані починаються з рядка 5 (індекс 4)
+        # ПІБ в колонці B (індекс 1)
         for row_idx, row in enumerate(all_data[4:], start=5):
-            if len(row) < 1 or not row[0]:
+            if len(row) < 2 or not row[1]:
                 continue
-            fullname = str(row[0]).strip()
+            fullname = str(row[1]).strip()
             if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
                 continue
             
-            # Отримуємо код операції з першого дня
+            # Отримуємо код операції
             operation_code = str(row[start_col]).strip() if start_col < len(row) else ''
             
             if operation_code not in OPERATION_CODES:
@@ -371,7 +353,7 @@ def load_workers_from_sheets():
                 'default_ktu': 1.0
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets for local DB")
+        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets (column B)")
         return workers
     except Exception as e:
         logger.error(f"Error loading workers: {e}")
@@ -418,15 +400,12 @@ def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu
         hours_col = cols['hours_col']
         value_col = cols['value_col']
         
-        # Оновлюємо TO
         if operation_code:
             worksheet.update_cell(row, start_col + 1, operation_code)
         
-        # Оновлюємо години
         if hours:
             worksheet.update_cell(row, hours_col + 1, hours)
         
-        # Оновлюємо КТУ або статус
         if status and status != 'present':
             status_map = {'Вщ': 'вщ', 'Пр': 'пр', 'На': 'на', 'Нз': 'нз'}
             value = status_map.get(status, 'вщ')
@@ -435,7 +414,7 @@ def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu
             value = str(ktu).replace('.', ',')
             worksheet.update_cell(row, value_col + 1, value)
         
-        logger.info(f"✅ Updated: row {row}")
+        logger.info(f"✅ Marked: {worker_name} at row {row}")
         return True
     except Exception as e:
         logger.error(f"Error marking worker: {e}")
