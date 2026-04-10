@@ -140,55 +140,44 @@ async def workshop_page(request: Request, workshop: str):
 async def recipe_page(request: Request):
     return templates.TemplateResponse("recipe.html", {"request": request})
 
-# ==================== API ДЛЯ СИНХРОНІЗАЦІЇ З GOOGLE SHEETS ====================
+# ==================== API ДЛЯ РОБОТИ З ТАБЕЛЕМ (GOOGLE SHEETS) ====================
+
+@app.get("/api/shift-data")
+async def get_shift_data(date: str):
+    """Отримати дані за конкретну дату (працівники, ТО, години, КТУ/статус)"""
+    from app.google_sheets import get_shift_data
+    result = get_shift_data(date)
+    return result
+
+@app.post("/api/sync-shift")
+async def sync_shift(request: Request):
+    """Синхронізувати дані з таблицею Google Sheets"""
+    from app.google_sheets import update_shift_data
+    data = await request.json()
+    result = update_shift_data(data.get('date'), data.get('workers'))
+    return result
+
+@app.get("/api/check-connection")
+async def check_connection():
+    """Перевірити підключення до Google Sheets"""
+    from app.google_sheets import check_connection
+    return {"connected": check_connection()}
+
+@app.get("/api/operations")
+async def get_operations():
+    """Отримати список технологічних операцій"""
+    return {"operations": ['601', '602', '603', '475', '1088', '1256']}
+
+# ==================== API ДЛЯ ЛОКАЛЬНОЇ БД (резерв) ====================
 
 @app.get("/api/workers/{workshop}")
 async def get_workers(workshop: str, date: str = None):
-    """Отримати працівників з локальної БД (для сумісності)"""
     from app.database import get_workers_by_workshop, get_workers_by_workshop_date
     if date:
         workers = get_workers_by_workshop_date(workshop, date)
     else:
         workers = get_workers_by_workshop(workshop)
     return {"workers": workers}
-
-@app.get("/api/workers-by-date/{operation_code}")
-async def get_workers_by_date(operation_code: str, date: str):
-    """Отримати працівників для конкретної дати та операції з Google Sheets"""
-    from app.google_sheets import get_workers_for_date
-    workers = get_workers_for_date(date, operation_code)
-    # Повертаємо тільки невідмічених
-    not_marked = [w for w in workers if not w['already_marked']]
-    return {"workers": not_marked, "all_workers": workers}
-
-@app.post("/api/mark-attendance")
-async def mark_attendance(mark: GoogleAttendanceMark):
-    """Універсальна відмітка (присутній/відсутній) в Google Sheets"""
-    from app.google_sheets import mark_worker_in_sheet
-    success = mark_worker_in_sheet(
-        worker_name=mark.worker_name,
-        operation_code=mark.operation_code,
-        status=mark.status,
-        ktu=mark.ktu,
-        hours=mark.hours,
-        date_str=mark.date,
-        row=mark.row
-    )
-    return {"ok": success}
-
-@app.get("/api/operations")
-async def get_operations():
-    """Отримати список всіх кодів операцій"""
-    return {"operations": ['601', '602', '603', '475', '1088', '1256']}
-
-@app.get("/api/workers-full-list")
-async def get_workers_full_list():
-    """Отримати повний список працівників з таблиці"""
-    from app.google_sheets import get_all_workers_list
-    workers = get_all_workers_list()
-    return {"workers": workers}
-
-# ==================== API ДЛЯ ЛОКАЛЬНОЇ БД (резерв) ====================
 
 @app.get("/api/all_workers/{workshop}")
 async def get_all_workers(workshop: str):
@@ -286,12 +275,12 @@ async def get_orders():
 
 @app.get("/debug/google")
 async def debug_google():
-    from app.google_sheets import init_google_sheets, get_workers_for_date, get_date_columns
+    from app.google_sheets import init_google_sheets, get_date_columns, get_shift_data
     
     result = {
         "connection": False,
         "date_columns": {},
-        "workers_today": {},
+        "workers_today": 0,
         "errors": []
     }
     
@@ -301,13 +290,12 @@ async def debug_google():
         
         if conn:
             date_columns = get_date_columns()
-            result["date_columns"] = date_columns
+            result["date_columns"] = {k: v for k, v in date_columns.items()}
             
-            # Перевіряємо для кожної операції
             today = datetime.now().strftime("%Y-%m-%d")
-            for op in ['601', '603', '475', '1088', '1256']:
-                workers = get_workers_for_date(today, op)
-                result["workers_today"][op] = len(workers)
+            shift_data = get_shift_data(today)
+            if shift_data.get('ok'):
+                result["workers_today"] = len(shift_data.get('workers', []))
     except Exception as e:
         result["errors"].append(str(e))
     
@@ -346,9 +334,10 @@ async def root():
             "health": "/health",
             "workshop": "/workshop/{DMT|Пакування}",
             "recipe": "/recipe",
-            "workers_by_date": "/api/workers-by-date/{operation_code}?date=YYYY-MM-DD",
-            "mark_attendance": "/api/mark-attendance (POST)",
+            "shift_data": "/api/shift-data?date=YYYY-MM-DD",
+            "sync_shift": "/api/sync-shift (POST)",
             "operations": "/api/operations",
+            "check_connection": "/api/check-connection",
             "debug_google": "/debug/google",
             "debug_db": "/debug/db",
             "sync_now": "/api/sync-now"
