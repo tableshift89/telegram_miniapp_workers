@@ -2,20 +2,28 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Облік цеху</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 20px;
             min-height: 100vh;
         }
+
         .container {
             max-width: 600px;
             margin: 0 auto;
@@ -24,12 +32,14 @@
             padding: 20px;
             box-shadow: 0 25px 45px rgba(0,0,0,0.2);
         }
+
         .header {
             text-align: center;
             margin-bottom: 24px;
             padding-bottom: 16px;
             border-bottom: 2px solid #e0e0e0;
         }
+
         h1 {
             font-size: 28px;
             background: linear-gradient(135deg, #667eea, #764ba2);
@@ -37,6 +47,7 @@
             background-clip: text;
             color: transparent;
         }
+
         .shift-info {
             background: #f0f0f0;
             display: inline-block;
@@ -45,6 +56,7 @@
             font-size: 14px;
             margin-top: 8px;
         }
+
         .mode-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -52,103 +64,31 @@
             font-size: 12px;
             margin-left: 10px;
         }
-        .mode-active { background: #ff9800; color: white; }
-        .mode-normal { background: #10b981; color: white; }
-        .add-worker {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-        .add-worker input {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 28px;
-            font-size: 16px;
-        }
-        .add-worker button {
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 28px;
-            padding: 0 20px;
-            cursor: pointer;
-        }
-        .worker-card {
-            background: white;
-            border-radius: 20px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .worker-card-absent {
-            background: #fff8e1;
-            border-left: 4px solid #ff9800;
-        }
-        .worker-name { font-weight: 600; font-size: 16px; }
-        .worker-actions { display: flex; gap: 12px; align-items: center; }
-        .ktu-select {
-            padding: 8px 12px;
-            border-radius: 20px;
-            border: 1px solid #ccc;
-            background: #f9f9f9;
-        }
-        .present-btn {
-            background: #10b981;
-            color: white;
-            border: none;
-            border-radius: 28px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .absent-select {
-            padding: 8px 12px;
-            border-radius: 20px;
-            border: 1px solid #ff9800;
-            background: #fff3e0;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        .finish-btn {
-            width: 100%;
-            margin-top: 15px;
-            background: #10b981;
-            color: white;
-            border: none;
-            border-radius: 28px;
-            padding: 14px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        #absent-mode-btn {
-            width: 100%;
-            margin: 15px 0;
+
+        .mode-active {
             background: #ff9800;
             color: white;
-            border: none;
-            border-radius: 28px;
-            padding: 14px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
         }
+
+        .mode-normal {
+            background: #10b981;
+            color: white;
+        }
+
         .date-selector {
             margin: 15px 0;
             padding: 10px;
             background: #f5f5f5;
             border-radius: 16px;
         }
+
         .date-selector label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #555;
         }
+
         #date-picker {
             width: 100%;
             padding: 12px;
@@ -158,37 +98,188 @@
             text-align: center;
             cursor: pointer;
         }
-        #show-result {
-            width: 100%;
-            background: #764ba2;
-            color: white;
-            border: none;
-            border-radius: 40px;
-            padding: 14px;
-            margin-top: 10px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
+
+        .workers-list {
+            margin: 20px 0;
         }
-        #result-table {
-            margin-top: 20px;
-            background: #f8f9fa;
+
+        .worker-card {
+            background: white;
             border-radius: 20px;
             padding: 16px;
-            overflow-x: auto;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border-left: 4px solid #667eea;
         }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #667eea; color: white; }
-        .empty-message { text-align: center; padding: 30px; color: #666; }
-        .selected-date-badge {
-            background: #667eea;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 28px;
-            text-align: center;
-            margin-bottom: 15px;
+
+        .worker-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .worker-name {
+            font-weight: 700;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .suggestion-badge {
+            background: #e8ecf1;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: #667eea;
+        }
+
+        .worker-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .field-group {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .field-group label {
+            display: block;
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .field-group select,
+        .field-group input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 16px;
             font-size: 14px;
+            background: #f9f9f9;
+        }
+
+        .sync-btn {
+            width: 100%;
+            margin: 15px 0;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            border-radius: 28px;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .sync-btn:active {
+            transform: scale(0.98);
+        }
+
+        .sync-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .connection-status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-indicator.connected {
+            background: #10b981;
+            box-shadow: 0 0 5px #10b981;
+        }
+
+        .status-indicator.disconnected {
+            background: #ef4444;
+            box-shadow: 0 0 5px #ef4444;
+        }
+
+        .status-indicator.checking {
+            background: #f59e0b;
+            box-shadow: 0 0 5px #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+
+        .error {
+            text-align: center;
+            padding: 30px;
+            color: #ef4444;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 14px;
+            z-index: 1000;
+            animation: fadeInUp 0.3s ease;
+        }
+
+        .toast.success {
+            background: #10b981;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translate(-50%, 20px);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
+
+        .flatpickr-calendar {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
     </style>
 </head>
@@ -202,24 +293,21 @@
             </div>
         </div>
 
-        <div class="add-worker">
-            <input type="text" id="new-worker-name" placeholder="Прізвище Ім'я По батькові">
-            <button id="add-worker-btn">➕ Додати</button>
-        </div>
-
-        <div class="workers-list" id="workers-list"></div>
-
-        <button id="absent-mode-btn">📋 Проставити відсутніх</button>
-        
         <div class="date-selector">
             <label>📅 Оберіть дату:</label>
             <input type="text" id="date-picker" placeholder="Виберіть дату">
         </div>
-        
-        <div id="selected-date-badge" class="selected-date-badge">📅 Обрана дата: сьогодні</div>
-        
-        <button id="show-result">📊 Показати результат</button>
-        <div id="result-table" style="display: none;"></div>
+
+        <div class="workers-list" id="workers-list">
+            <div class="loading">Завантаження даних...</div>
+        </div>
+
+        <button id="sync-btn" class="sync-btn">🔄 Синхронізувати з табелем</button>
+
+        <div class="connection-status" id="connection-status">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span id="status-text">Перевірка підключення...</span>
+        </div>
     </div>
 
     <script>
@@ -230,214 +318,234 @@
             const workshop = decodeURIComponent(window.location.pathname.split('/').pop());
             document.getElementById('workshop-name').innerText = workshop;
 
-            let currentShift = 8;
-            let workers = [];
-            let absentMode = false;
-            let absentSelections = {};
             let selectedDate = new Date().toISOString().split('T')[0];
+            let workersData = [];
+            let operations = [];
 
-            // Функція для форматування дати для відображення
-            function formatDate(dateStr) {
-                if (!dateStr) return 'сьогодні';
-                const parts = dateStr.split('-');
-                if (parts.length === 3) {
-                    return `${parts[2]}.${parts[1]}.${parts[0]}`;
-                }
-                return dateStr;
-            }
-
-            // Оновлення відображення вибраної дати
-            function updateSelectedDateDisplay() {
-                const formattedDate = formatDate(selectedDate);
-                document.getElementById('selected-date-badge').innerHTML = `📅 Обрана дата: ${formattedDate}`;
-            }
-
-            // Ініціалізація календаря
-            flatpickr("#date-picker", {
-                locale: "uk",
-                dateFormat: "Y-m-d",
-                defaultDate: selectedDate,
-                onChange: function(selectedDates, dateStr, instance) {
-                    selectedDate = dateStr;
-                    updateSelectedDateDisplay();
-                    loadWorkers(); // перезавантажуємо працівників за обрану дату
-                }
-            });
-
-            async function loadCurrentShift() {
+            // Перевірка підключення до Google Sheets
+            async function checkConnection() {
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('status-text');
+                
+                indicator.className = 'status-indicator checking';
+                text.innerText = 'Перевірка підключення...';
+                
                 try {
-                    const res = await fetch('/api/current_shift');
+                    const res = await fetch('/api/check-connection');
                     const data = await res.json();
-                    currentShift = data.shift_hours;
-                    document.getElementById('shift-hours').innerText = currentShift;
-                } catch(e) {
-                    console.error('Failed to load shift:', e);
-                }
-            }
-
-            async function loadWorkers() {
-                try {
-                    const url = `/api/workers/${encodeURIComponent(workshop)}?date=${selectedDate}`;
-                    console.log('Loading workers from:', url);
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    workers = data.workers || [];
-                    absentSelections = {};
-                    workers.forEach(w => {
-                        absentSelections[w.id] = 'Вщ';
-                    });
-                    renderWorkers();
-                } catch(e) {
-                    console.error('Failed to load workers:', e);
-                }
-            }
-
-            async function submitAllAbsent() {
-                if (workers.length === 0) {
-                    tg.showPopup({
-                        title: "Інформація",
-                        message: "Немає невідмічених працівників",
-                        buttons: [{type: "ok"}]
-                    });
-                    return;
-                }
-
-                tg.showPopup({
-                    title: "Підтвердження",
-                    message: `Відправити ${workers.length} працівників як відсутніх за ${selectedDate}?`,
-                    buttons: [
-                        {id: "cancel", type: "cancel", text: "Скасувати"},
-                        {id: "ok", type: "ok", text: "Так, відправити"}
-                    ]
-                }, async (buttonId) => {
-                    if (buttonId === "ok") {
-                        for (const w of workers) {
-                            const status = absentSelections[w.id] || 'Вщ';
-                            try {
-                                await fetch('/api/mark_other', {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({
-                                        worker_id: w.id,
-                                        status: status,
-                                        date: selectedDate
-                                    })
-                                });
-                            } catch(e) {
-                                console.error('Error marking absent:', e);
-                            }
-                        }
-                        workers = [];
-                        renderWorkers();
-                        exitAbsentMode();
-                        tg.showPopup({
-                            title: "✅ Готово!",
-                            message: `Всіх відсутніх за ${selectedDate} відправлено`,
-                            buttons: [{type: "ok"}]
-                        });
+                    
+                    if (data.connected) {
+                        indicator.className = 'status-indicator connected';
+                        text.innerText = '✅ Підключено до Google Табелю';
+                    } else {
+                        indicator.className = 'status-indicator disconnected';
+                        text.innerText = '❌ Немає зв\'язку з Google Табелем';
                     }
-                });
+                } catch(e) {
+                    indicator.className = 'status-indicator disconnected';
+                    text.innerText = '❌ Помилка з\'єднання з сервером';
+                }
             }
 
-            function exitAbsentMode() {
-                absentMode = false;
-                const btn = document.getElementById('absent-mode-btn');
-                const badge = document.getElementById('mode-badge');
-                btn.style.background = '#ff9800';
-                btn.innerHTML = '📋 Проставити відсутніх';
-                badge.innerHTML = '✅ Режим присутності';
-                badge.className = 'mode-badge mode-normal';
-                renderWorkers();
+            // Завантаження списку операцій
+            async function loadOperations() {
+                try {
+                    const res = await fetch('/api/operations');
+                    const data = await res.json();
+                    operations = data.operations || ['601', '602', '603', '475', '1088', '1256'];
+                } catch(e) {
+                    console.error('Failed to load operations:', e);
+                    operations = ['601', '602', '603', '475', '1088', '1256'];
+                }
             }
 
-            function renderWorkers() {
+            // Завантаження даних за обрану дату
+            async function loadShiftData() {
+                const container = document.getElementById('workers-list');
+                container.innerHTML = '<div class="loading">📥 Завантаження даних...</div>';
+                
+                try {
+                    const res = await fetch(`/api/shift-data?date=${selectedDate}`);
+                    const data = await res.json();
+                    
+                    if (data.ok) {
+                        workersData = data.workers || [];
+                        renderWorkersList();
+                    } else {
+                        container.innerHTML = `<div class="error">❌ ${data.error || 'Помилка завантаження'}</div>`;
+                    }
+                } catch(e) {
+                    console.error('Error loading shift data:', e);
+                    container.innerHTML = '<div class="error">❌ Помилка завантаження даних</div>';
+                }
+            }
+
+            // Відображення списку працівників
+            function renderWorkersList() {
                 const container = document.getElementById('workers-list');
                 container.innerHTML = '';
                 
-                if (workers.length === 0) {
-                    container.innerHTML = `<div class="empty-message">✅ Всі працівники відмічені за ${formatDate(selectedDate)}!</div>`;
+                if (!workersData || workersData.length === 0) {
+                    container.innerHTML = '<div class="empty-message">📭 Немає працівників за обрану дату</div>';
                     return;
                 }
                 
-                if (absentMode) {
-                    workers.forEach(w => {
-                        const card = document.createElement('div');
-                        card.className = 'worker-card worker-card-absent';
-                        card.dataset.id = w.id;
-                        card.innerHTML = `
-                            <span class="worker-name">${escapeHtml(w.fullname)}</span>
-                            <div class="worker-actions">
-                                <select class="absent-select" data-id="${w.id}">
-                                    <option value="Вщ" ${absentSelections[w.id] === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний (Вщ)</option>
-                                    <option value="Пр" ${absentSelections[w.id] === 'Пр' ? 'selected' : ''}>😷 Прогул (Пр)</option>
-                                    <option value="На" ${absentSelections[w.id] === 'На' ? 'selected' : ''}>📚 Відпустка за свій рахунок (На)</option>
-                                    <option value="Нз" ${absentSelections[w.id] === 'Нз' ? 'selected' : ''}>❌ Не з\'явився (-лась) (Нз)</option>
+                workersData.forEach(worker => {
+                    const card = document.createElement('div');
+                    card.className = 'worker-card';
+                    card.dataset.row = worker.row;
+                    card.dataset.fullname = worker.fullname;
+                    
+                    // Визначаємо значення КТУ або статусу
+                    let valueHtml = '';
+                    if (worker.status) {
+                        valueHtml = `
+                            <div class="field-group">
+                                <label>📊 Статус:</label>
+                                <select class="status-select" data-row="${worker.row}">
+                                    <option value="">📋 Оберіть статус</option>
+                                    <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний (Вщ)</option>
+                                    <option value="Пр" ${worker.status === 'Пр' ? 'selected' : ''}>😷 Прогул (Пр)</option>
+                                    <option value="На" ${worker.status === 'На' ? 'selected' : ''}>📚 Відпустка за свій рахунок (На)</option>
+                                    <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився (Нз)</option>
                                 </select>
                             </div>
                         `;
-                        container.appendChild(card);
-                    });
-                    
-                    const finishBtn = document.createElement('button');
-                    finishBtn.className = 'finish-btn';
-                    finishBtn.innerHTML = '✅ Завершити та відправити всіх відсутніх';
-                    finishBtn.onclick = submitAllAbsent;
-                    container.appendChild(finishBtn);
-                    
-                    document.querySelectorAll('.absent-select').forEach(select => {
-                        select.onchange = (e) => {
-                            const id = parseInt(select.dataset.id);
-                            absentSelections[id] = select.value;
-                        };
-                    });
-                } else {
-                    workers.forEach(w => {
-                        const card = document.createElement('div');
-                        card.className = 'worker-card';
-                        card.dataset.id = w.id;
-                        card.innerHTML = `
-                            <span class="worker-name">${escapeHtml(w.fullname)}</span>
-                            <div class="worker-actions">
-                                <select class="ktu-select" data-id="${w.id}">
-                                    <option value="0.9">0.9</option>
-                                    <option value="1" selected>1</option>
-                                    <option value="1.1">1.1</option>
-                                    <option value="1.2">1.2</option>
-                                    <option value="1.3">1.3</option>
+                    } else {
+                        valueHtml = `
+                            <div class="field-group">
+                                <label>📊 КТУ:</label>
+                                <select class="ktu-select" data-row="${worker.row}">
+                                    <option value="0.9" ${worker.ktu === 0.9 ? 'selected' : ''}>0.9</option>
+                                    <option value="1" ${worker.ktu === 1 || !worker.ktu ? 'selected' : ''}>1</option>
+                                    <option value="1.1" ${worker.ktu === 1.1 ? 'selected' : ''}>1.1</option>
+                                    <option value="1.2" ${worker.ktu === 1.2 ? 'selected' : ''}>1.2</option>
+                                    <option value="1.3" ${worker.ktu === 1.3 ? 'selected' : ''}>1.3</option>
                                 </select>
-                                <button class="present-btn" data-id="${w.id}">✅ Присутній</button>
                             </div>
                         `;
-                        container.appendChild(card);
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="worker-info">
+                            <span class="worker-name">${escapeHtml(worker.fullname)}</span>
+                            ${worker.suggested_to ? `<span class="suggestion-badge">📋 з попереднього дня: ${worker.suggested_to}</span>` : ''}
+                        </div>
+                        <div class="worker-fields">
+                            <div class="field-group">
+                                <label>🔧 ТО:</label>
+                                <select class="to-select" data-row="${worker.row}">
+                                    <option value="">Виберіть ТО</option>
+                                    ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label>⏱️ Години:</label>
+                                <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || ''}" step="0.5" min="0" max="12" placeholder="8-9">
+                            </div>
+                            ${valueHtml}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                
+                attachEventHandlers();
+            }
+
+            function attachEventHandlers() {
+                // TO selects
+                document.querySelectorAll('.to-select').forEach(select => {
+                    select.onchange = (e) => {
+                        const row = parseInt(select.dataset.row);
+                        const worker = workersData.find(w => w.row === row);
+                        if (worker) worker.to = select.value;
+                    };
+                });
+                
+                // Hours inputs
+                document.querySelectorAll('.hours-input').forEach(input => {
+                    input.onchange = (e) => {
+                        const row = parseInt(input.dataset.row);
+                        const worker = workersData.find(w => w.row === row);
+                        if (worker) worker.hours = input.value;
+                    };
+                });
+                
+                // KTU selects
+                document.querySelectorAll('.ktu-select').forEach(select => {
+                    select.onchange = (e) => {
+                        const row = parseInt(select.dataset.row);
+                        const worker = workersData.find(w => w.row === row);
+                        if (worker) {
+                            worker.ktu = parseFloat(select.value);
+                            worker.status = null;
+                        }
+                    };
+                });
+                
+                // Status selects
+                document.querySelectorAll('.status-select').forEach(select => {
+                    select.onchange = (e) => {
+                        const row = parseInt(select.dataset.row);
+                        const worker = workersData.find(w => w.row === row);
+                        if (worker) {
+                            worker.status = select.value;
+                            worker.ktu = null;
+                        }
+                    };
+                });
+            }
+
+            // Синхронізація з Google Sheets
+            async function syncToSheet() {
+                const syncBtn = document.getElementById('sync-btn');
+                const originalText = syncBtn.innerHTML;
+                syncBtn.innerHTML = '🔄 Синхронізація...';
+                syncBtn.disabled = true;
+                
+                // Збираємо дані для збереження
+                const dataToSave = workersData.map(worker => ({
+                    row: worker.row,
+                    fullname: worker.fullname,
+                    to: worker.to || '',
+                    hours: worker.hours || '',
+                    status: worker.status || null,
+                    ktu: worker.ktu || null
+                }));
+                
+                try {
+                    const res = await fetch('/api/sync-shift', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            date: selectedDate,
+                            workers: dataToSave
+                        })
                     });
                     
-                    document.querySelectorAll('.present-btn').forEach(btn => {
-                        btn.onclick = async (e) => {
-                            e.stopPropagation();
-                            const id = parseInt(btn.dataset.id);
-                            const ktuSelect = document.querySelector(`.ktu-select[data-id="${id}"]`);
-                            const ktu = parseFloat(ktuSelect.value);
-                            
-                            try {
-                                await fetch('/api/mark_present', {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({
-                                        worker_id: id,
-                                        ktu: ktu,
-                                        shift_hours: currentShift,
-                                        date: selectedDate
-                                    })
-                                });
-                                const card = document.querySelector(`.worker-card[data-id="${id}"]`);
-                                if (card) card.remove();
-                                workers = workers.filter(w => w.id !== id);
-                            } catch(e) {
-                                console.error('Error marking present:', e);
-                            }
-                        };
-                    });
+                    const result = await res.json();
+                    
+                    if (result.ok) {
+                        showToast('✅ Дані успішно синхронізовано!', 'success');
+                        await loadShiftData();
+                    } else {
+                        showToast(`❌ Помилка: ${result.error || 'Невідома помилка'}`, 'error');
+                    }
+                } catch(e) {
+                    console.error('Sync error:', e);
+                    showToast('❌ Помилка синхронізації', 'error');
+                } finally {
+                    syncBtn.innerHTML = originalText;
+                    syncBtn.disabled = false;
                 }
+            }
+
+            function showToast(message, type) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerText = message;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
             }
 
             function escapeHtml(str) {
@@ -450,105 +558,27 @@
                 });
             }
 
-            document.getElementById('add-worker-btn').onclick = async () => {
-                const name = document.getElementById('new-worker-name').value.trim();
-                if (!name) return;
-                
-                try {
-                    await fetch('/api/worker', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({fullname: name, workshop: workshop})
-                    });
-                    document.getElementById('new-worker-name').value = '';
-                    await loadWorkers();
-                } catch(e) {
-                    console.error('Error adding worker:', e);
+            // Ініціалізація календаря
+            flatpickr("#date-picker", {
+                locale: "uk",
+                dateFormat: "Y-m-d",
+                defaultDate: selectedDate,
+                onChange: (dates, dateStr) => {
+                    selectedDate = dateStr;
+                    loadShiftData();
                 }
-            };
+            });
 
-            const absentBtn = document.getElementById('absent-mode-btn');
-            const modeBadge = document.getElementById('mode-badge');
-
-            absentBtn.onclick = () => {
-                if (workers.length === 0 && !absentMode) {
-                    tg.showPopup({
-                        title: "Інформація",
-                        message: "Немає невідмічених працівників",
-                        buttons: [{type: "ok"}]
-                    });
-                    return;
-                }
-                
-                if (absentMode) {
-                    absentMode = false;
-                    absentBtn.style.background = '#ff9800';
-                    absentBtn.innerHTML = '📋 Проставити відсутніх';
-                    modeBadge.innerHTML = '✅ Режим присутності';
-                    modeBadge.className = 'mode-badge mode-normal';
-                    renderWorkers();
-                } else {
-                    absentMode = true;
-                    absentBtn.style.background = '#10b981';
-                    absentBtn.innerHTML = '🔙 Повернутись до присутності';
-                    modeBadge.innerHTML = '📋 Режим відсутніх';
-                    modeBadge.className = 'mode-badge mode-active';
-                    renderWorkers();
-                }
-            };
-
-            // Показати результат за обрану дату
-            document.getElementById('show-result').onclick = async () => {
-                try {
-                    const url = `/api/report?date=${selectedDate}`;
-                    console.log('Loading report from:', url);
-                    const res = await fetch(url);
-                    const data = await res.json();
-                    
-                    const formattedDate = formatDate(selectedDate);
-                    
-                    if (!data || data.length === 0) {
-                        document.getElementById('result-table').innerHTML = `<div style="padding:20px; text-align:center;">📭 Немає даних за ${formattedDate}<br><br>💡 Відмітьте працівників за цю дату, щоб побачити результат.</div>`;
-                        document.getElementById('result-table').style.display = 'block';
-                        return;
-                    }
-                    
-                    let html = `<h3>📋 Результат відмічання за ${formattedDate}</h3>`;
-                    html += '<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">';
-                    html += '<tr style="background:#f0f0f0;"><th>Працівник</th><th>Цех</th><th>Статус</th><th>КТУ</th><th>Годин</th></tr>';
-                    
-                    data.forEach(row => {
-                        let statusDisplay = '';
-                        if (row.status === 'present') statusDisplay = '✅ Присутній';
-                        else if (row.status === 'Вщ') statusDisplay = '🏖️ Вихідний';
-                        else if (row.status === 'Пр') statusDisplay = '😷 Прогул';
-                        else if (row.status === 'На') statusDisplay = '📚 Відпустка за свій рахунок';
-                        else if (row.status === 'Нз') statusDisplay = '❌ Не з\'явився (-лась)';
-                        else statusDisplay = row.status;
-                        
-                        html += `<tr>
-                            <td>${escapeHtml(row.fullname)}</td>
-                            <td>${row.workshop || workshop}</td>
-                            <td>${statusDisplay}</td>
-                            <td>${row.ktu}</td>
-                            <td>${row.shift_hours}</td>
-                        </tr>`;
-                    });
-                    html += '</table>';
-                    
-                    document.getElementById('result-table').innerHTML = html;
-                    document.getElementById('result-table').style.display = 'block';
-                } catch(e) {
-                    console.error('Error loading report:', e);
-                    document.getElementById('result-table').innerHTML = '<div style="padding:20px; text-align:center;">❌ Помилка завантаження даних</div>';
-                    document.getElementById('result-table').style.display = 'block';
-                }
-            };
+            // Кнопка синхронізації
+            document.getElementById('sync-btn').onclick = syncToSheet;
 
             // Ініціалізація
-            updateSelectedDateDisplay();
-            loadCurrentShift();
-            loadWorkers();
+            checkConnection();
+            loadOperations();
+            loadShiftData();
+            
+            // Перевірка підключення кожні 30 секунд
+            setInterval(checkConnection, 30000);
         })();
     </script>
 </body>
