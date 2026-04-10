@@ -3,27 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Облік цеху</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            min-height: 100vh;
+        }
+
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 16px;
-            min-height: 100vh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
+
         .container {
-            max-width: 500px;
-            margin: 0 auto;
+            width: 100%;
+            min-height: 100vh;
             background: rgba(255,255,255,0.95);
-            border-radius: 28px;
+            border-radius: 0;
             padding: 16px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            box-shadow: none;
         }
+
         .header {
             text-align: center;
             margin-bottom: 16px;
@@ -31,6 +45,22 @@
             border-bottom: 1px solid #e0e0e0;
         }
         h1 { font-size: 22px; color: #333; }
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+            font-weight: normal;
+        }
+        .mode-active {
+            background: #f59e0b;
+            color: white;
+        }
+        .mode-normal {
+            background: #10b981;
+            color: white;
+        }
         .shift-info {
             background: #f0f0f0;
             display: inline-block;
@@ -88,6 +118,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
         }
         .outsourcer-badge {
             background: #f59e0b;
@@ -124,7 +155,7 @@
             color: #888;
             margin-bottom: 2px;
         }
-        .to-select, .hours-input, .status-select, .ktu-select {
+        .to-select, .hours-input, .status-select {
             width: 100%;
             padding: 8px;
             border-radius: 20px;
@@ -140,7 +171,7 @@
             font-size: 12px;
             background: #fff8e1;
         }
-        .present-btn {
+        .action-btn {
             background: #10b981;
             border: none;
             border-radius: 50%;
@@ -154,20 +185,22 @@
             font-size: 20px;
             transition: transform 0.2s;
         }
-        .present-btn:active { transform: scale(0.95); }
-        .submit-absent-btn {
+        .action-btn:active { transform: scale(0.95); }
+        .absent-action-btn {
             background: #f59e0b;
             border: none;
-            border-radius: 28px;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
+            color: white;
+            font-size: 18px;
             transition: transform 0.2s;
-            min-width: 120px;
         }
-        .submit-absent-btn:active { transform: scale(0.95); }
+        .absent-action-btn:active { transform: scale(0.95); }
         .other-btn {
             background: #8b5cf6;
             border: none;
@@ -249,7 +282,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏭 ЦЕХ <span id="workshop-name"></span></h1>
+            <h1>🏭 ЦЕХ <span id="workshop-name"></span>
+                <span id="mode-badge" class="mode-badge mode-normal">✅ Режим присутності</span>
+            </h1>
             <div class="shift-info">⚙️ Зміна: <span id="shift-hours">8</span> год</div>
         </div>
 
@@ -275,9 +310,11 @@
         (function() {
             const tg = window.Telegram.WebApp;
             tg.expand();
+            tg.ready();
+            tg.setBackgroundColor('#667eea');
+            tg.setHeaderColor('#764ba2');
 
             let workshop = decodeURIComponent(window.location.pathname.split('/').pop());
-            // Перетворюємо DMT на ДМТ для відображення
             if (workshop === 'DMT') workshop = 'ДМТ';
             document.getElementById('workshop-name').innerText = workshop;
 
@@ -285,6 +322,8 @@
             let workersData = [];
             let operations = ['601', '602', '603', '475', '1088', '1256'];
             let absentMode = false;
+
+            const modeBadge = document.getElementById('mode-badge');
 
             async function checkConnection() {
                 const indicator = document.getElementById('status-indicator');
@@ -369,6 +408,11 @@
             }
 
             async function markAbsent(worker) {
+                if (!worker.status) {
+                    showToast('❌ Виберіть статус відсутності!', 'error');
+                    return;
+                }
+                
                 try {
                     const response = await fetch('/api/sync-shift', {
                         method: 'POST',
@@ -378,9 +422,9 @@
                             workers: [{
                                 row: worker.row,
                                 fullname: worker.fullname,
-                                to: worker.to || '',
-                                hours: worker.hours || '',
-                                status: worker.status || 'Вщ',
+                                to: '',
+                                hours: '',
+                                status: worker.status,
                                 ktu: null
                             }]
                         })
@@ -388,7 +432,14 @@
                     
                     const result = await response.json();
                     if (result.ok) {
-                        showToast(`✅ ${worker.fullname} - ${worker.status || 'Вщ'} відмічено!`, 'success');
+                        let statusText = '';
+                        if (worker.status === 'Вщ') statusText = 'Вихідний';
+                        else if (worker.status === 'В') statusText = 'Відпустка';
+                        else if (worker.status === 'На') statusText = 'За свій рахунок';
+                        else if (worker.status === 'Пр') statusText = 'Прогул';
+                        else if (worker.status === 'Нз') statusText = 'Не з\'явився';
+                        showToast(`✅ ${worker.fullname} - ${statusText}`, 'success');
+                        
                         const card = document.querySelector(`.worker-card[data-row="${worker.row}"]`);
                         if (card) {
                             card.classList.add('removed');
@@ -441,53 +492,62 @@
                     }
                     card.dataset.row = worker.row;
 
-                    // Підказка про попередній день
                     let suggestionHtml = '';
-                    if (worker.suggested_to) {
+                    if (worker.suggested_to && !absentMode) {
                         suggestionHtml = `<span class="suggestion-badge">📋 минула ТО: ${worker.suggested_to}</span>`;
                     }
 
-                    let toSelectHtml = '';
-                    if (worker.isCustomMode) {
-                        toSelectHtml = `
-                            <div class="field-group">
-                                <label>🔧 ТО (кастомне):</label>
-                                <input type="text" class="custom-input" id="custom-input-${worker.row}" placeholder="Введіть ТО" value="${worker.to || ''}">
-                                <button class="other-btn" onclick="window.saveCustomValue(${worker.row}, document.getElementById('custom-input-${worker.row}'))">✅ Зберегти</button>
-                            </div>
-                        `;
-                    } else {
-                        toSelectHtml = `
-                            <div class="field-group">
-                                <label>🔧 ТО:</label>
-                                <select class="to-select" data-row="${worker.row}">
-                                    <option value="">Виберіть ТО</option>
-                                    ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
-                                    <option value="__custom__">✏️ Інше (ввести вручну)</option>
-                                </select>
-                            </div>
-                        `;
-                    }
-
-                    let valueHtml = '';
+                    let controlsHtml = '';
+                    
                     if (absentMode) {
-                        valueHtml = `
+                        // Режим відсутності - тільки статус та кнопка-чебокс
+                        controlsHtml = `
                             <div class="field-group">
                                 <label>📊 Статус:</label>
-                                <select class="status-select" data-row="${worker.row}" style="min-width:100px;">
-                                    <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний</option>
-                                    <option value="Пр" ${worker.status === 'Пр' ? 'selected' : ''}>😷 Прогул</option>
-                                    <option value="На" ${worker.status === 'На' ? 'selected' : ''}>📚 Відпустка</option>
-                                    <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився</option>
+                                <select class="status-select" data-row="${worker.row}">
+                                    <option value="">Виберіть статус</option>
+                                    <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний (Вщ)</option>
+                                    <option value="В" ${worker.status === 'В' ? 'selected' : ''}>🏖️ Відпустка (В)</option>
+                                    <option value="На" ${worker.status === 'На' ? 'selected' : ''}>📚 За свій рахунок (На)</option>
+                                    <option value="Пр" ${worker.status === 'Пр' ? 'selected' : ''}>😷 Прогул (Пр)</option>
+                                    <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився (Нз)</option>
                                 </select>
                             </div>
-                            <button class="submit-absent-btn" data-row="${worker.row}">📤 Відправити</button>
+                            <button class="absent-action-btn" data-row="${worker.row}">✔️</button>
                         `;
                     } else {
-                        valueHtml = `
+                        // Режим присутності - ТО, години, КТУ, кнопка
+                        let toSelectHtml = '';
+                        if (worker.isCustomMode) {
+                            toSelectHtml = `
+                                <div class="field-group">
+                                    <label>🔧 ТО (кастомне):</label>
+                                    <input type="text" class="custom-input" id="custom-input-${worker.row}" placeholder="Введіть ТО" value="${worker.to || ''}">
+                                    <button class="other-btn" onclick="window.saveCustomValue(${worker.row}, document.getElementById('custom-input-${worker.row}'))">✅ Зберегти</button>
+                                </div>
+                            `;
+                        } else {
+                            toSelectHtml = `
+                                <div class="field-group">
+                                    <label>🔧 ТО:</label>
+                                    <select class="to-select" data-row="${worker.row}">
+                                        <option value="">Виберіть ТО</option>
+                                        ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
+                                        <option value="__custom__">✏️ Інше (ввести вручну)</option>
+                                    </select>
+                                </div>
+                            `;
+                        }
+                        
+                        controlsHtml = `
+                            ${toSelectHtml}
+                            <div class="field-group">
+                                <label>⏱️ Години:</label>
+                                <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" step="0.5" min="0" max="12" placeholder="год">
+                            </div>
                             <div class="field-group">
                                 <label>📊 КТУ:</label>
-                                <select class="ktu-select" data-row="${worker.row}" style="min-width:60px;">
+                                <select class="ktu-select" data-row="${worker.row}">
                                     <option value="0.9" ${worker.ktu === 0.9 ? 'selected' : ''}>0.9</option>
                                     <option value="1" ${worker.ktu === 1 || !worker.ktu ? 'selected' : ''}>1</option>
                                     <option value="1.1" ${worker.ktu === 1.1 ? 'selected' : ''}>1.1</option>
@@ -495,7 +555,7 @@
                                     <option value="1.3" ${worker.ktu === 1.3 ? 'selected' : ''}>1.3</option>
                                 </select>
                             </div>
-                            <button class="present-btn" data-row="${worker.row}">✔️</button>
+                            <button class="action-btn" data-row="${worker.row}">✔️</button>
                         `;
                     }
 
@@ -508,12 +568,7 @@
                             </div>
                         </div>
                         <div class="worker-controls">
-                            ${toSelectHtml}
-                            <div class="field-group">
-                                <label>⏱️ Години:</label>
-                                <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" step="0.5" min="0" max="12" placeholder="год">
-                            </div>
-                            ${valueHtml}
+                            ${controlsHtml}
                         </div>
                     `;
                     container.appendChild(card);
@@ -523,81 +578,79 @@
             }
 
             function attachEventHandlers() {
-                // TO selects
-                document.querySelectorAll('.to-select').forEach(select => {
-                    select.onchange = (e) => {
-                        const row = parseInt(select.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker && select.value !== '__custom__') {
-                            worker.to = select.value;
-                            worker.isCustomMode = false;
-                        } else if (select.value === '__custom__') {
-                            worker.isCustomMode = true;
-                            renderWorkersList();
-                        }
-                    };
-                });
-                
-                // Hours inputs
-                document.querySelectorAll('.hours-input').forEach(input => {
-                    input.onchange = (e) => {
-                        const row = parseInt(input.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker) worker.hours = input.value;
-                    };
-                });
-                
-                // KTU selects
-                document.querySelectorAll('.ktu-select').forEach(select => {
-                    select.onchange = (e) => {
-                        const row = parseInt(select.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker) {
-                            worker.ktu = parseFloat(select.value);
-                            worker.status = null;
-                        }
-                    };
-                });
-                
-                // Status selects
-                document.querySelectorAll('.status-select').forEach(select => {
-                    select.onchange = (e) => {
-                        const row = parseInt(select.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker) {
-                            worker.status = select.value;
-                            worker.ktu = null;
-                        }
-                    };
-                });
-                
-                // Present buttons
-                document.querySelectorAll('.present-btn').forEach(btn => {
-                    btn.onclick = (e) => {
-                        e.preventDefault();
-                        const row = parseInt(btn.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker) {
-                            markPresent(worker);
-                        }
-                    };
-                });
-                
-                // Submit absent buttons
-                document.querySelectorAll('.submit-absent-btn').forEach(btn => {
-                    btn.onclick = (e) => {
-                        e.preventDefault();
-                        const row = parseInt(btn.dataset.row);
-                        const worker = workersData.find(w => w.row === row);
-                        if (worker) {
-                            if (!worker.status) {
-                                showToast('❌ Виберіть статус відсутності!', 'error');
-                                return;
+                if (!absentMode) {
+                    // TO selects (тільки в режимі присутності)
+                    document.querySelectorAll('.to-select').forEach(select => {
+                        select.onchange = (e) => {
+                            const row = parseInt(select.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker && select.value !== '__custom__') {
+                                worker.to = select.value;
+                                worker.isCustomMode = false;
+                            } else if (select.value === '__custom__') {
+                                worker.isCustomMode = true;
+                                renderWorkersList();
                             }
-                            markAbsent(worker);
-                        }
-                    };
-                });
+                        };
+                    });
+                    
+                    // Hours inputs
+                    document.querySelectorAll('.hours-input').forEach(input => {
+                        input.onchange = (e) => {
+                            const row = parseInt(input.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker) worker.hours = input.value;
+                        };
+                    });
+                    
+                    // KTU selects
+                    document.querySelectorAll('.ktu-select').forEach(select => {
+                        select.onchange = (e) => {
+                            const row = parseInt(select.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker) {
+                                worker.ktu = parseFloat(select.value);
+                                worker.status = null;
+                            }
+                        };
+                    });
+                    
+                    // Present action buttons
+                    document.querySelectorAll('.action-btn').forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.preventDefault();
+                            const row = parseInt(btn.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker) {
+                                markPresent(worker);
+                            }
+                        };
+                    });
+                } else {
+                    // Status selects (тільки в режимі відсутності)
+                    document.querySelectorAll('.status-select').forEach(select => {
+                        select.onchange = (e) => {
+                            const row = parseInt(select.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker) {
+                                worker.status = select.value;
+                                worker.ktu = null;
+                            }
+                        };
+                    });
+                    
+                    // Absent action buttons
+                    document.querySelectorAll('.absent-action-btn').forEach(btn => {
+                        btn.onclick = (e) => {
+                            e.preventDefault();
+                            const row = parseInt(btn.dataset.row);
+                            const worker = workersData.find(w => w.row === row);
+                            if (worker) {
+                                markAbsent(worker);
+                            }
+                        };
+                    });
+                }
             }
 
             async function syncToSheet() {
@@ -670,8 +723,11 @@
                 onChange: (dates, dateStr) => {
                     selectedDate = dateStr;
                     absentMode = false;
-                    document.getElementById('absent-mode-btn').classList.remove('absent-mode-active');
-                    document.getElementById('absent-mode-btn').innerHTML = '📋 Відмітити відсутніх';
+                    const btn = document.getElementById('absent-mode-btn');
+                    btn.classList.remove('absent-mode-active');
+                    btn.innerHTML = '📋 Відмітити відсутніх';
+                    modeBadge.innerHTML = '✅ Режим присутності';
+                    modeBadge.className = 'mode-badge mode-normal';
                     loadShiftData();
                 }
             });
@@ -682,9 +738,13 @@
                 if (absentMode) {
                     btn.innerHTML = '✅ Повернутись до присутності';
                     btn.classList.add('absent-mode-active');
+                    modeBadge.innerHTML = '📋 Режим відсутності';
+                    modeBadge.className = 'mode-badge mode-active';
                 } else {
                     btn.innerHTML = '📋 Відмітити відсутніх';
                     btn.classList.remove('absent-mode-active');
+                    modeBadge.innerHTML = '✅ Режим присутності';
+                    modeBadge.className = 'mode-badge mode-normal';
                 }
                 renderWorkersList();
             };
