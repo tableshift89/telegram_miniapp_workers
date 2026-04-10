@@ -64,15 +64,10 @@
         .worker-card {
             background: white;
             border-radius: 16px;
-            padding: 10px 12px;
+            padding: 12px;
             margin-bottom: 8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.05);
             border-left: 3px solid #667eea;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 8px;
             transition: all 0.3s;
         }
         .worker-card.removed { display: none; }
@@ -80,12 +75,16 @@
             border-left-color: #f59e0b;
             background: #fffbeb;
         }
+        .worker-name-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
         .worker-name {
             font-weight: 600;
             font-size: 14px;
             color: #333;
-            flex: 2;
-            min-width: 120px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -102,34 +101,84 @@
             font-size: 12px;
             font-weight: bold;
         }
+        .suggestion-badge {
+            background: #e8ecf1;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            color: #667eea;
+        }
         .worker-controls {
             display: flex;
-            align-items: center;
-            gap: 8px;
             flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .field-group {
+            flex: 1;
+            min-width: 80px;
+        }
+        .field-group label {
+            display: block;
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 2px;
         }
         .to-select, .hours-input, .status-select, .ktu-select {
-            padding: 6px 8px;
+            width: 100%;
+            padding: 8px;
             border-radius: 20px;
             border: 1px solid #ddd;
             font-size: 12px;
             background: #f9f9f9;
         }
+        .custom-input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 20px;
+            border: 1px solid #f59e0b;
+            font-size: 12px;
+            background: #fff8e1;
+        }
         .present-btn {
             background: #10b981;
             border: none;
             border-radius: 50%;
-            width: 34px;
-            height: 34px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             color: white;
-            font-size: 18px;
+            font-size: 20px;
             transition: transform 0.2s;
         }
         .present-btn:active { transform: scale(0.95); }
+        .submit-absent-btn {
+            background: #f59e0b;
+            border: none;
+            border-radius: 28px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+            min-width: 120px;
+        }
+        .submit-absent-btn:active { transform: scale(0.95); }
+        .other-btn {
+            background: #8b5cf6;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: white;
+            cursor: pointer;
+            margin-top: 4px;
+            width: 100%;
+        }
         .absent-mode-btn, .sync-btn {
             width: 100%;
             margin: 10px 0;
@@ -200,7 +249,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏭 Цех <span id="workshop-name"></span></h1>
+            <h1>🏭 ЦЕХ <span id="workshop-name"></span></h1>
             <div class="shift-info">⚙️ Зміна: <span id="shift-hours">8</span> год</div>
         </div>
 
@@ -227,7 +276,9 @@
             const tg = window.Telegram.WebApp;
             tg.expand();
 
-            const workshop = decodeURIComponent(window.location.pathname.split('/').pop());
+            let workshop = decodeURIComponent(window.location.pathname.split('/').pop());
+            // Перетворюємо DMT на ДМТ для відображення
+            if (workshop === 'DMT') workshop = 'ДМТ';
             document.getElementById('workshop-name').innerText = workshop;
 
             let selectedDate = new Date().toISOString().split('T')[0];
@@ -317,6 +368,62 @@
                 }
             }
 
+            async function markAbsent(worker) {
+                try {
+                    const response = await fetch('/api/sync-shift', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: selectedDate,
+                            workers: [{
+                                row: worker.row,
+                                fullname: worker.fullname,
+                                to: worker.to || '',
+                                hours: worker.hours || '',
+                                status: worker.status || 'Вщ',
+                                ktu: null
+                            }]
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.ok) {
+                        showToast(`✅ ${worker.fullname} - ${worker.status || 'Вщ'} відмічено!`, 'success');
+                        const card = document.querySelector(`.worker-card[data-row="${worker.row}"]`);
+                        if (card) {
+                            card.classList.add('removed');
+                            setTimeout(() => card.remove(), 300);
+                        }
+                        workersData = workersData.filter(w => w.row !== worker.row);
+                    } else {
+                        showToast(`❌ Помилка: ${result.error}`, 'error');
+                    }
+                } catch(e) {
+                    console.error('Error marking absent:', e);
+                    showToast('❌ Помилка відмітки', 'error');
+                }
+            }
+
+            function toggleCustomInput(workerRow, selectEl) {
+                const worker = workersData.find(w => w.row === workerRow);
+                if (!worker) return;
+                
+                if (selectEl.value === '__custom__') {
+                    worker.isCustomMode = true;
+                    renderWorkersList();
+                }
+            }
+
+            function saveCustomValue(workerRow, inputEl) {
+                const worker = workersData.find(w => w.row === workerRow);
+                if (!worker) return;
+                
+                worker.to = inputEl.value;
+                worker.isCustomMode = false;
+                renderWorkersList();
+                showToast(`✅ ТО змінено на: ${inputEl.value}`, 'success');
+            }
+
             function renderWorkersList() {
                 const container = document.getElementById('workers-list');
                 container.innerHTML = '';
@@ -334,41 +441,78 @@
                     }
                     card.dataset.row = worker.row;
 
+                    // Підказка про попередній день
+                    let suggestionHtml = '';
+                    if (worker.suggested_to) {
+                        suggestionHtml = `<span class="suggestion-badge">📋 минула ТО: ${worker.suggested_to}</span>`;
+                    }
+
+                    let toSelectHtml = '';
+                    if (worker.isCustomMode) {
+                        toSelectHtml = `
+                            <div class="field-group">
+                                <label>🔧 ТО (кастомне):</label>
+                                <input type="text" class="custom-input" id="custom-input-${worker.row}" placeholder="Введіть ТО" value="${worker.to || ''}">
+                                <button class="other-btn" onclick="window.saveCustomValue(${worker.row}, document.getElementById('custom-input-${worker.row}'))">✅ Зберегти</button>
+                            </div>
+                        `;
+                    } else {
+                        toSelectHtml = `
+                            <div class="field-group">
+                                <label>🔧 ТО:</label>
+                                <select class="to-select" data-row="${worker.row}">
+                                    <option value="">Виберіть ТО</option>
+                                    ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
+                                    <option value="__custom__">✏️ Інше (ввести вручну)</option>
+                                </select>
+                            </div>
+                        `;
+                    }
+
                     let valueHtml = '';
                     if (absentMode) {
                         valueHtml = `
-                            <select class="status-select" data-row="${worker.row}" style="min-width:100px;">
-                                <option value="">📋 Виберіть</option>
-                                <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний</option>
-                                <option value="Пр" ${worker.status === 'Пр' ? 'selected' : ''}>😷 Прогул</option>
-                                <option value="На" ${worker.status === 'На' ? 'selected' : ''}>📚 Відпустка</option>
-                                <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився</option>
-                            </select>
+                            <div class="field-group">
+                                <label>📊 Статус:</label>
+                                <select class="status-select" data-row="${worker.row}" style="min-width:100px;">
+                                    <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний</option>
+                                    <option value="Пр" ${worker.status === 'Пр' ? 'selected' : ''}>😷 Прогул</option>
+                                    <option value="На" ${worker.status === 'На' ? 'selected' : ''}>📚 Відпустка</option>
+                                    <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився</option>
+                                </select>
+                            </div>
+                            <button class="submit-absent-btn" data-row="${worker.row}">📤 Відправити</button>
                         `;
                     } else {
                         valueHtml = `
-                            <select class="ktu-select" data-row="${worker.row}" style="min-width:60px;">
-                                <option value="0.9" ${worker.ktu === 0.9 ? 'selected' : ''}>0.9</option>
-                                <option value="1" ${worker.ktu === 1 || !worker.ktu ? 'selected' : ''}>1</option>
-                                <option value="1.1" ${worker.ktu === 1.1 ? 'selected' : ''}>1.1</option>
-                                <option value="1.2" ${worker.ktu === 1.2 ? 'selected' : ''}>1.2</option>
-                                <option value="1.3" ${worker.ktu === 1.3 ? 'selected' : ''}>1.3</option>
-                            </select>
+                            <div class="field-group">
+                                <label>📊 КТУ:</label>
+                                <select class="ktu-select" data-row="${worker.row}" style="min-width:60px;">
+                                    <option value="0.9" ${worker.ktu === 0.9 ? 'selected' : ''}>0.9</option>
+                                    <option value="1" ${worker.ktu === 1 || !worker.ktu ? 'selected' : ''}>1</option>
+                                    <option value="1.1" ${worker.ktu === 1.1 ? 'selected' : ''}>1.1</option>
+                                    <option value="1.2" ${worker.ktu === 1.2 ? 'selected' : ''}>1.2</option>
+                                    <option value="1.3" ${worker.ktu === 1.3 ? 'selected' : ''}>1.3</option>
+                                </select>
+                            </div>
                             <button class="present-btn" data-row="${worker.row}">✔️</button>
                         `;
                     }
 
                     card.innerHTML = `
-                        <span class="worker-name">
-                            ${worker.isOutsourcer ? '<span class="outsourcer-badge">А</span>' : ''}
-                            ${escapeHtml(worker.fullname)}
-                        </span>
+                        <div class="worker-name-row">
+                            <div class="worker-name">
+                                ${worker.isOutsourcer ? '<span class="outsourcer-badge">А</span>' : ''}
+                                ${escapeHtml(worker.fullname)}
+                                ${suggestionHtml}
+                            </div>
+                        </div>
                         <div class="worker-controls">
-                            <select class="to-select" data-row="${worker.row}" style="min-width:65px;">
-                                <option value="">ТО</option>
-                                ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
-                            </select>
-                            <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" step="0.5" min="0" max="12" placeholder="год" style="width:55px;">
+                            ${toSelectHtml}
+                            <div class="field-group">
+                                <label>⏱️ Години:</label>
+                                <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" step="0.5" min="0" max="12" placeholder="год">
+                            </div>
                             ${valueHtml}
                         </div>
                     `;
@@ -379,14 +523,22 @@
             }
 
             function attachEventHandlers() {
+                // TO selects
                 document.querySelectorAll('.to-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
                         const worker = workersData.find(w => w.row === row);
-                        if (worker) worker.to = select.value;
+                        if (worker && select.value !== '__custom__') {
+                            worker.to = select.value;
+                            worker.isCustomMode = false;
+                        } else if (select.value === '__custom__') {
+                            worker.isCustomMode = true;
+                            renderWorkersList();
+                        }
                     };
                 });
                 
+                // Hours inputs
                 document.querySelectorAll('.hours-input').forEach(input => {
                     input.onchange = (e) => {
                         const row = parseInt(input.dataset.row);
@@ -395,6 +547,7 @@
                     };
                 });
                 
+                // KTU selects
                 document.querySelectorAll('.ktu-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
@@ -406,6 +559,7 @@
                     };
                 });
                 
+                // Status selects
                 document.querySelectorAll('.status-select').forEach(select => {
                     select.onchange = (e) => {
                         const row = parseInt(select.dataset.row);
@@ -417,6 +571,7 @@
                     };
                 });
                 
+                // Present buttons
                 document.querySelectorAll('.present-btn').forEach(btn => {
                     btn.onclick = (e) => {
                         e.preventDefault();
@@ -424,6 +579,22 @@
                         const worker = workersData.find(w => w.row === row);
                         if (worker) {
                             markPresent(worker);
+                        }
+                    };
+                });
+                
+                // Submit absent buttons
+                document.querySelectorAll('.submit-absent-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.preventDefault();
+                        const row = parseInt(btn.dataset.row);
+                        const worker = workersData.find(w => w.row === row);
+                        if (worker) {
+                            if (!worker.status) {
+                                showToast('❌ Виберіть статус відсутності!', 'error');
+                                return;
+                            }
+                            markAbsent(worker);
                         }
                     };
                 });
@@ -481,6 +652,16 @@
                     return m;
                 });
             }
+
+            window.saveCustomValue = function(row, inputEl) {
+                const worker = workersData.find(w => w.row === row);
+                if (worker) {
+                    worker.to = inputEl.value;
+                    worker.isCustomMode = false;
+                    renderWorkersList();
+                    showToast(`✅ ТО змінено на: ${inputEl.value}`, 'success');
+                }
+            };
 
             flatpickr("#date-picker", {
                 locale: "uk",
