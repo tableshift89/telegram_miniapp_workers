@@ -155,7 +155,15 @@
             color: #888;
             margin-bottom: 2px;
         }
-        .to-select, .hours-input, .status-select {
+        .to-select, .status-select, .ktu-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            background: #f9f9f9;
+        }
+        .hours-input {
             width: 100%;
             padding: 8px;
             border-radius: 20px;
@@ -455,26 +463,6 @@
                 }
             }
 
-            function toggleCustomInput(workerRow, selectEl) {
-                const worker = workersData.find(w => w.row === workerRow);
-                if (!worker) return;
-                
-                if (selectEl.value === '__custom__') {
-                    worker.isCustomMode = true;
-                    renderWorkersList();
-                }
-            }
-
-            function saveCustomValue(workerRow, inputEl) {
-                const worker = workersData.find(w => w.row === workerRow);
-                if (!worker) return;
-                
-                worker.to = inputEl.value;
-                worker.isCustomMode = false;
-                renderWorkersList();
-                showToast(`✅ ТО змінено на: ${inputEl.value}`, 'success');
-            }
-
             function renderWorkersList() {
                 const container = document.getElementById('workers-list');
                 container.innerHTML = '';
@@ -543,7 +531,7 @@
                             ${toSelectHtml}
                             <div class="field-group">
                                 <label>⏱️ Години:</label>
-                                <input type="number" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" step="0.5" min="0" max="12" placeholder="год">
+                                <input type="text" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" placeholder="год (напр. 9/2)">
                             </div>
                             <div class="field-group">
                                 <label>📊 КТУ:</label>
@@ -594,12 +582,14 @@
                         };
                     });
                     
-                    // Hours inputs
+                    // Hours inputs - тепер TEXT, зберігає будь-яке значення
                     document.querySelectorAll('.hours-input').forEach(input => {
                         input.onchange = (e) => {
                             const row = parseInt(input.dataset.row);
                             const worker = workersData.find(w => w.row === row);
-                            if (worker) worker.hours = input.value;
+                            if (worker) {
+                                worker.hours = input.value;
+                            }
                         };
                     });
                     
