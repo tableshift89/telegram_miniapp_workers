@@ -86,37 +86,120 @@ h1 {
     transition: transform 0.2s;
 }
 
+.add-worker button:active {
+    transform: scale(0.96);
+}
+
+.date-selector {
+    margin: 15px 0;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 16px;
+}
+
+.date-selector label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+
+#date-picker {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 28px;
+    font-size: 16px;
+    text-align: center;
+    cursor: pointer;
+}
+
+#date-picker:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.workers-list {
+    margin: 20px 0;
+}
+
 .worker-card {
     background: white;
     border-radius: 20px;
     padding: 16px;
     margin-bottom: 12px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    border-left: 4px solid #667eea;
+    transition: all 0.3s;
+}
+
+.worker-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+}
+
+.worker-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    animation: fadeIn 0.3s;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.worker-name {
+    font-weight: 700;
+    font-size: 16px;
+    color: #333;
+}
+
+.suggestion-badge {
+    background: #e8ecf1;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #667eea;
+}
+
+.worker-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.field-group {
+    flex: 1;
+    min-width: 100px;
+}
+
+.field-group label {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.field-group select,
+.field-group input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    font-size: 14px;
+    background: #f9f9f9;
+    transition: border-color 0.2s;
+}
+
+.field-group select:focus,
+.field-group input:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .worker-card-absent {
     background: #fff8e1;
-    border-left: 4px solid #ff9800;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px);}
-    to { opacity: 1; transform: translateY(0);}
-}
-
-.worker-name {
-    font-weight: 600;
-    font-size: 16px;
-}
-
-.worker-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
+    border-left-color: #ff9800;
 }
 
 .ktu-select {
@@ -136,6 +219,10 @@ h1 {
     cursor: pointer;
     font-weight: bold;
     transition: transform 0.2s;
+}
+
+.present-btn:active {
+    transform: scale(0.96);
 }
 
 .absent-select {
@@ -161,12 +248,8 @@ h1 {
     transition: transform 0.2s;
 }
 
-button {
-    transition: all 0.2s ease;
-}
-
-button:active {
-    transform: scale(0.96);
+.finish-btn:active {
+    transform: scale(0.98);
 }
 
 #absent-mode-btn {
@@ -183,6 +266,33 @@ button:active {
     transition: transform 0.2s;
 }
 
+#absent-mode-btn:active {
+    transform: scale(0.98);
+}
+
+.sync-btn {
+    width: 100%;
+    margin: 15px 0;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    border: none;
+    border-radius: 28px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.sync-btn:active {
+    transform: scale(0.98);
+}
+
+.sync-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 #show-result {
     width: 100%;
     background: #764ba2;
@@ -195,6 +305,10 @@ button:active {
     font-weight: bold;
     cursor: pointer;
     transition: transform 0.2s;
+}
+
+#show-result:active {
+    transform: scale(0.98);
 }
 
 #result-table {
@@ -227,4 +341,141 @@ th {
     padding: 30px;
     color: #666;
     font-size: 16px;
+}
+
+.loading {
+    text-align: center;
+    padding: 30px;
+    color: #666;
+}
+
+.error {
+    text-align: center;
+    padding: 30px;
+    color: #ef4444;
+}
+
+/* Стилі для індикатора підключення */
+.connection-status {
+    margin-top: 20px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.connected {
+    background: #10b981;
+    box-shadow: 0 0 5px #10b981;
+}
+
+.status-indicator.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 5px #ef4444;
+}
+
+.status-indicator.checking {
+    background: #f59e0b;
+    box-shadow: 0 0 5px #f59e0b;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+/* Стилі для Toast повідомлень */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 40px;
+    font-size: 14px;
+    z-index: 1000;
+    animation: fadeInUp 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.toast.success {
+    background: #10b981;
+}
+
+.toast.error {
+    background: #ef4444;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* Стилі для календаря */
+.flatpickr-calendar {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.flatpickr-day.selected {
+    background: #667eea;
+    border-color: #667eea;
+}
+
+.flatpickr-day.today {
+    border-color: #764ba2;
+}
+
+/* Адаптивність для мобільних пристроїв */
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .container {
+        padding: 16px;
+    }
+    
+    h1 {
+        font-size: 24px;
+    }
+    
+    .worker-fields {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .field-group {
+        min-width: 100%;
+    }
+    
+    .worker-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .suggestion-badge {
+        font-size: 10px;
+    }
 }
