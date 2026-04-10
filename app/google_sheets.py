@@ -103,7 +103,10 @@ def get_date_columns():
         return {}
 
 def get_shift_data(date_str: str):
-    """Отримати дані за конкретну дату (ПІБ з колонки B, індекс 1)"""
+    """
+    Отримати дані за конкретну дату (ПІБ з колонки B, індекс 1)
+    Визначає аутсорсерів (працівники після рядка "Аутсорс")
+    """
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -128,14 +131,27 @@ def get_shift_data(date_str: str):
         prev_cols = date_columns.get(prev_date_str)
         
         workers = []
+        is_outsourcer_section = False  # Флаг для визначення секції аутсорсерів
+        
         # Дані починаються з рядка 5 (індекс 4)
         # ПІБ в колонці B (індекс 1)
         for row_idx, row in enumerate(all_data[4:], start=5):
-            if len(row) < 2 or not row[1]:
+            if len(row) < 2:
                 continue
             
-            fullname = str(row[1]).strip()  # ПІБ з колонки B
-            if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
+            # Перевіряємо чи це рядок "Аутсорс" (початок секції аутсорсерів)
+            first_col = str(row[1]).strip() if len(row) > 1 else ''
+            if first_col == 'Аутсорс':
+                is_outsourcer_section = True
+                logger.info(f"📋 Outsourcer section starts at row {row_idx}")
+                continue
+            
+            if not row[1]:
+                continue
+            
+            fullname = str(row[1]).strip()
+            # Пропускаємо пусті рядки та заголовки бригадирів
+            if not fullname or fullname.startswith('Бригадир'):
                 continue
             
             if start_col >= len(row):
@@ -185,10 +201,12 @@ def get_shift_data(date_str: str):
                 'status': status,
                 'ktu': ktu,
                 'suggested_to': suggested_to,
-                'suggested_hours': suggested_hours
+                'suggested_hours': suggested_hours,
+                'isOutsourcer': is_outsourcer_section  # Додаємо прапорець аутсорсера
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers for {date_str}")
+        outsourcer_count = sum(1 for w in workers if w['isOutsourcer'])
+        logger.info(f"📋 Loaded {len(workers)} workers for {date_str} (outsourcers: {outsourcer_count})")
         return {"ok": True, "workers": workers, "columns": cols}
     except Exception as e:
         logger.error(f"Error getting shift data: {e}")
@@ -255,7 +273,7 @@ def save_to_history(date_str: str, workers_data: list):
             ws = sheet.worksheet(history_name)
         except:
             ws = sheet.add_worksheet(title=history_name, rows=10000, cols=20)
-            ws.append_row(['Дата', 'Час', 'ПІБ', 'ТО', 'Години', 'КТУ/Статус'])
+            ws.append_row(['Дата', 'Час', 'ПІБ', 'ТО', 'Години', 'КТУ/Статус', 'Аутсорсер'])
         
         now = datetime.now()
         for worker in workers_data:
@@ -266,7 +284,8 @@ def save_to_history(date_str: str, workers_data: list):
                 worker.get('fullname', ''),
                 worker.get('to', ''),
                 worker.get('hours', ''),
-                value if value else ''
+                value if value else '',
+                'Так' if worker.get('isOutsourcer') else ''
             ])
         logger.info(f"📝 Saved {len(workers_data)} records to history")
     except Exception as e:
@@ -324,22 +343,29 @@ def load_workers_from_sheets():
         start_col = first_cols['start_col']
         
         workers = []
-        # Дані починаються з рядка 5 (індекс 4)
-        # ПІБ в колонці B (індекс 1)
+        is_outsourcer_section = False
+        
         for row_idx, row in enumerate(all_data[4:], start=5):
-            if len(row) < 2 or not row[1]:
-                continue
-            fullname = str(row[1]).strip()
-            if not fullname or fullname == 'Аутсорс' or fullname.startswith('Бригадир'):
+            if len(row) < 2:
                 continue
             
-            # Отримуємо код операції
+            first_col = str(row[1]).strip() if len(row) > 1 else ''
+            if first_col == 'Аутсорс':
+                is_outsourcer_section = True
+                continue
+            
+            if not row[1]:
+                continue
+            
+            fullname = str(row[1]).strip()
+            if not fullname or fullname.startswith('Бригадир'):
+                continue
+            
             operation_code = str(row[start_col]).strip() if start_col < len(row) else ''
             
             if operation_code not in OPERATION_CODES:
                 continue
             
-            # Визначаємо цех за кодом
             if operation_code in ['601', '602', '603']:
                 workshop = 'DMT'
             else:
@@ -350,10 +376,11 @@ def load_workers_from_sheets():
                 'fullname': fullname,
                 'workshop': workshop,
                 'operation_code': operation_code,
-                'default_ktu': 1.0
+                'default_ktu': 1.0,
+                'isOutsourcer': is_outsourcer_section
             })
         
-        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets (column B)")
+        logger.info(f"📋 Loaded {len(workers)} workers from Google Sheets")
         return workers
     except Exception as e:
         logger.error(f"Error loading workers: {e}")
@@ -377,10 +404,11 @@ def save_attendance_to_sheets(worker_id: int, status: str, ktu: float, shift_hou
         ktu=ktu,
         hours=shift_hours,
         date_str=today,
-        row=worker.get('row', 5)
+        row=worker.get('row', 5),
+        isOutsourcer=worker.get('isOutsourcer', False)
     )
 
-def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu: float, hours: int, date_str: str, row: int):
+def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu: float, hours: int, date_str: str, row: int, isOutsourcer: bool = False):
     """Записує відмітку в таблицю"""
     global sheet
     if sheet is None:
@@ -414,7 +442,7 @@ def mark_worker_in_sheet(worker_name: str, operation_code: str, status: str, ktu
             value = str(ktu).replace('.', ',')
             worksheet.update_cell(row, value_col + 1, value)
         
-        logger.info(f"✅ Marked: {worker_name} at row {row}")
+        logger.info(f"✅ Marked: {worker_name} at row {row} (outsourcer: {isOutsourcer})")
         return True
     except Exception as e:
         logger.error(f"Error marking worker: {e}")
