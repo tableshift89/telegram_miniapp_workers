@@ -11,24 +11,13 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html, body {
-            width: 100%;
-            height: 100%;
-            min-height: 100vh;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; min-height: 100vh; }
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
-
         .container {
             width: 100%;
             min-height: 100vh;
@@ -37,13 +26,7 @@
             padding: 16px;
             box-shadow: none;
         }
-
-        .header {
-            text-align: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e0e0e0;
-        }
+        .header { text-align: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
         h1 { font-size: 22px; color: #333; }
         .mode-badge {
             display: inline-block;
@@ -53,22 +36,8 @@
             margin-left: 10px;
             font-weight: normal;
         }
-        .mode-active {
-            background: #f59e0b;
-            color: white;
-        }
-        .mode-normal {
-            background: #10b981;
-            color: white;
-        }
-        .shift-info {
-            background: #f0f0f0;
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            margin-top: 6px;
-        }
+        .mode-active { background: #f59e0b; color: white; }
+        .mode-normal { background: #10b981; color: white; }
         .controls-row {
             display: flex;
             gap: 12px;
@@ -82,21 +51,8 @@
             background: #f5f5f5;
             border-radius: 16px;
         }
-        .date-selector label {
-            display: block;
-            font-size: 10px;
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 2px;
-        }
-        #date-picker {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            font-size: 12px;
-            text-align: center;
-        }
+        .date-selector label { display: block; font-size: 10px; font-weight: 600; color: #555; margin-bottom: 2px; }
+        #date-picker { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 20px; font-size: 12px; text-align: center; }
         .hours-selector {
             flex: 1;
             min-width: 100px;
@@ -104,21 +60,8 @@
             background: #f5f5f5;
             border-radius: 16px;
         }
-        .hours-selector label {
-            display: block;
-            font-size: 10px;
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 2px;
-        }
-        .hours-selector select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            font-size: 12px;
-            background: white;
-        }
+        .hours-selector label { display: block; font-size: 10px; font-weight: 600; color: #555; margin-bottom: 2px; }
+        .hours-selector select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 20px; font-size: 12px; background: white; }
         .add-worker-btn {
             background: #10b981;
             border: none;
@@ -146,84 +89,17 @@
             transition: all 0.3s;
         }
         .worker-card.removed { display: none; }
-        .worker-card.outsourcer {
-            border-left-color: #f59e0b;
-            background: #fffbeb;
-        }
-        .worker-name-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-        .worker-name {
-            font-weight: 600;
-            font-size: 14px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .outsourcer-badge {
-            background: #f59e0b;
-            color: white;
-            border-radius: 50%;
-            width: 22px;
-            height: 22px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .suggestion-badge {
-            background: #e8ecf1;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-size: 10px;
-            color: #667eea;
-        }
-        .worker-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-items: center;
-        }
-        .field-group {
-            flex: 1;
-            min-width: 80px;
-        }
-        .field-group label {
-            display: block;
-            font-size: 10px;
-            color: #888;
-            margin-bottom: 2px;
-        }
-        .to-select, .status-select, .ktu-select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 20px;
-            border: 1px solid #ddd;
-            font-size: 12px;
-            background: #f9f9f9;
-        }
-        .hours-input {
-            width: 100%;
-            padding: 8px;
-            border-radius: 20px;
-            border: 1px solid #ddd;
-            font-size: 12px;
-            background: #f9f9f9;
-        }
-        .custom-input {
-            width: 100%;
-            padding: 8px;
-            border-radius: 20px;
-            border: 1px solid #f59e0b;
-            font-size: 12px;
-            background: #fff8e1;
-        }
+        .worker-card.outsourcer { border-left-color: #f59e0b; background: #fffbeb; }
+        .worker-name-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .worker-name { font-weight: 600; font-size: 14px; color: #333; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .outsourcer-badge { background: #f59e0b; color: white; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+        .suggestion-badge { background: #e8ecf1; padding: 4px 8px; border-radius: 20px; font-size: 10px; color: #667eea; }
+        .worker-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .field-group { flex: 1; min-width: 80px; }
+        .field-group label { display: block; font-size: 10px; color: #888; margin-bottom: 2px; }
+        .to-select, .status-select, .ktu-select { width: 100%; padding: 8px; border-radius: 20px; border: 1px solid #ddd; font-size: 12px; background: #f9f9f9; }
+        .hours-input { width: 100%; padding: 8px; border-radius: 20px; border: 1px solid #ddd; font-size: 12px; background: #f9f9f9; }
+        .custom-input { width: 100%; padding: 8px; border-radius: 20px; border: 1px solid #f59e0b; font-size: 12px; background: #fff8e1; }
         .action-btn {
             background: #10b981;
             border: none;
@@ -254,132 +130,34 @@
             transition: transform 0.2s;
         }
         .absent-action-btn:active { transform: scale(0.95); }
-        .other-btn {
-            background: #8b5cf6;
-            border: none;
-            border-radius: 20px;
-            padding: 8px 12px;
-            font-size: 11px;
-            color: white;
-            cursor: pointer;
-            margin-top: 4px;
-            width: 100%;
-        }
-        .absent-mode-btn, .sync-btn {
-            width: 100%;
-            margin: 10px 0;
-            padding: 12px;
-            border-radius: 28px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .absent-mode-btn {
-            background: #f59e0b;
-            color: white;
-            border: none;
-        }
-        .sync-btn {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            border: none;
-        }
+        .other-btn { background: #8b5cf6; border: none; border-radius: 20px; padding: 8px 12px; font-size: 11px; color: white; cursor: pointer; margin-top: 4px; width: 100%; }
+        .absent-mode-btn, .sync-btn { width: 100%; margin: 10px 0; padding: 12px; border-radius: 28px; font-size: 14px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
+        .absent-mode-btn { background: #f59e0b; color: white; border: none; }
+        .sync-btn { background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; }
         .absent-mode-active { background: #10b981 !important; }
-        .connection-status {
-            margin-top: 16px;
-            padding: 8px;
-            background: #f5f5f5;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 11px;
-        }
-        .status-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
+        .connection-status { margin-top: 16px; padding: 8px; background: #f5f5f5; border-radius: 16px; display: flex; align-items: center; gap: 8px; font-size: 11px; }
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; }
         .status-indicator.connected { background: #10b981; box-shadow: 0 0 4px #10b981; }
         .status-indicator.disconnected { background: #ef4444; box-shadow: 0 0 4px #ef4444; }
         .status-indicator.checking { background: #f59e0b; animation: pulse 1s infinite; }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-        .empty-message, .loading, .error {
-            text-align: center;
-            padding: 20px;
-            font-size: 13px;
-            color: #666;
-        }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 8px 20px;
-            border-radius: 40px;
-            font-size: 12px;
-            z-index: 1000;
-            animation: fadeInUp 0.3s ease;
-        }
+        .empty-message, .loading, .error { text-align: center; padding: 20px; font-size: 13px; color: #666; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 8px 20px; border-radius: 40px; font-size: 12px; z-index: 1000; animation: fadeInUp 0.3s ease; }
         .toast.success { background: #10b981; }
         .toast.error { background: #ef4444; }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translate(-50%, 20px); }
-            to { opacity: 1; transform: translate(-50%, 0); }
-        }
-        .new-worker-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1001;
-        }
-        .modal-content {
-            background: white;
-            border-radius: 24px;
-            padding: 20px;
-            width: 90%;
-            max-width: 320px;
-        }
-        .modal-content h3 {
-            margin-bottom: 16px;
-            text-align: center;
-        }
-        .modal-content input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 28px;
-            margin-bottom: 16px;
-        }
-        .modal-buttons {
-            display: flex;
-            gap: 12px;
-        }
-        .modal-buttons button {
-            flex: 1;
-            padding: 10px;
-            border-radius: 28px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .modal-buttons button:first-child {
-            background: #10b981;
-            color: white;
-        }
-        .modal-buttons button:last-child {
-            background: #ef4444;
-            color: white;
-        }
+        @keyframes fadeInUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        .new-worker-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1001; }
+        .modal-content { background: white; border-radius: 24px; padding: 20px; width: 90%; max-width: 320px; }
+        .modal-content h3 { margin-bottom: 16px; text-align: center; }
+        .modal-content input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 28px; margin-bottom: 16px; }
+        .radio-group { display: flex; gap: 20px; margin-bottom: 16px; justify-content: center; }
+        .radio-group label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .modal-buttons { display: flex; gap: 12px; }
+        .modal-buttons button { flex: 1; padding: 10px; border-radius: 28px; border: none; font-weight: bold; cursor: pointer; }
+        .modal-buttons button:first-child { background: #10b981; color: white; }
+        .modal-buttons button:last-child { background: #ef4444; color: white; }
+        .to-warning { background: #fef3c7; border-left-color: #f59e0b; }
+        .warning-text { color: #f59e0b; font-size: 11px; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -423,6 +201,14 @@
         <div class="modal-content">
             <h3>➕ Додати нового працівника</h3>
             <input type="text" id="new-worker-name" placeholder="Прізвище Ім'я По батькові">
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="worker-type" value="official" checked> Офіційний
+                </label>
+                <label>
+                    <input type="radio" name="worker-type" value="outsourcer"> Аутсорс (А)
+                </label>
+            </div>
             <div class="modal-buttons">
                 <button id="confirm-add-worker">Додати</button>
                 <button id="cancel-add-worker">Скасувати</button>
@@ -488,7 +274,6 @@
                     const data = await res.json();
                     if (data.ok) {
                         workersData = data.workers || [];
-                        // Застосовуємо вибрані години до всіх, у кого немає годин
                         workersData.forEach(worker => {
                             if (!worker.hours || worker.hours === '') {
                                 worker.hours = defaultShiftHours.toString();
@@ -503,7 +288,6 @@
                 }
             }
 
-            // Функція для застосування годин до всіх працівників
             function applyHoursToAll() {
                 const newHours = shiftSelect.value;
                 defaultShiftHours = parseInt(newHours);
@@ -514,15 +298,15 @@
                 showToast(`✅ Години змінено на ${newHours} для всіх`, 'success');
             }
 
-            // Додавання нового працівника
-            async function addNewWorker(fullname) {
+            async function addNewWorker(fullname, isOutsourcer) {
                 try {
-                    const response = await fetch('/api/worker', {
+                    const response = await fetch('/api/add-worker', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             fullname: fullname,
-                            workshop: workshop === 'ДМТ' ? 'DMT' : 'Пакування'
+                            workshop: workshop === 'ДМТ' ? 'DMT' : 'Пакування',
+                            isOutsourcer: isOutsourcer
                         })
                     });
                     const result = await response.json();
@@ -538,7 +322,17 @@
                 }
             }
 
+            function validateWorker(worker) {
+                if (!worker.to || worker.to === '') {
+                    showToast(`❌ ${worker.fullname}: виберіть ТО!`, 'error');
+                    return false;
+                }
+                return true;
+            }
+
             async function markPresent(worker) {
+                if (!validateWorker(worker)) return;
+                
                 try {
                     const response = await fetch('/api/sync-shift', {
                         method: 'POST',
@@ -637,11 +431,19 @@
                     if (worker.isOutsourcer) {
                         card.classList.add('outsourcer');
                     }
+                    if (!worker.to && !worker.status) {
+                        card.classList.add('to-warning');
+                    }
                     card.dataset.row = worker.row;
 
                     let suggestionHtml = '';
                     if (worker.suggested_to && !absentMode) {
                         suggestionHtml = `<span class="suggestion-badge">📋 минула ТО: ${worker.suggested_to}</span>`;
+                    }
+
+                    let warningHtml = '';
+                    if (!worker.to && !worker.status && !absentMode) {
+                        warningHtml = `<div class="warning-text">⚠️ Оберіть ТО</div>`;
                     }
 
                     let controlsHtml = '';
@@ -701,6 +503,7 @@
                                 </select>
                             </div>
                             <button class="action-btn" data-row="${worker.row}">✔️</button>
+                            ${warningHtml}
                         `;
                     }
 
@@ -731,6 +534,7 @@
                             if (worker && select.value !== '__custom__') {
                                 worker.to = select.value;
                                 worker.isCustomMode = false;
+                                renderWorkersList();
                             } else if (select.value === '__custom__') {
                                 worker.isCustomMode = true;
                                 renderWorkersList();
@@ -857,7 +661,6 @@
                 }
             };
 
-            // Модальне вікно для додавання працівника
             const modal = document.getElementById('new-worker-modal');
             document.getElementById('add-worker-btn').onclick = () => {
                 modal.style.display = 'flex';
@@ -865,13 +668,16 @@
             document.getElementById('cancel-add-worker').onclick = () => {
                 modal.style.display = 'none';
                 document.getElementById('new-worker-name').value = '';
+                document.querySelector('input[name="worker-type"][value="official"]').checked = true;
             };
             document.getElementById('confirm-add-worker').onclick = async () => {
                 const name = document.getElementById('new-worker-name').value.trim();
+                const isOutsourcer = document.querySelector('input[name="worker-type"]:checked').value === 'outsourcer';
                 if (name) {
-                    await addNewWorker(name);
+                    await addNewWorker(name, isOutsourcer);
                     modal.style.display = 'none';
                     document.getElementById('new-worker-name').value = '';
+                    document.querySelector('input[name="worker-type"][value="official"]').checked = true;
                 } else {
                     showToast('❌ Введіть ПІБ працівника', 'error');
                 }
@@ -880,7 +686,6 @@
                 if (e.target === modal) modal.style.display = 'none';
             };
 
-            // Дропдаун для зміни годин
             shiftSelect.onchange = applyHoursToAll;
 
             flatpickr("#date-picker", {
