@@ -317,8 +317,12 @@
     <script>
         (function() {
             const tg = window.Telegram.WebApp;
+            
+            // Розгортання на весь екран
             tg.expand();
             tg.ready();
+            
+            // Налаштування кольорів
             tg.setBackgroundColor('#667eea');
             tg.setHeaderColor('#764ba2');
 
@@ -488,7 +492,6 @@
                     let controlsHtml = '';
                     
                     if (absentMode) {
-                        // Режим відсутності - тільки статус та кнопка-чебокс
                         controlsHtml = `
                             <div class="field-group">
                                 <label>📊 Статус:</label>
@@ -504,7 +507,6 @@
                             <button class="absent-action-btn" data-row="${worker.row}">✔️</button>
                         `;
                     } else {
-                        // Режим присутності - ТО, години, КТУ, кнопка
                         let toSelectHtml = '';
                         if (worker.isCustomMode) {
                             toSelectHtml = `
@@ -567,7 +569,6 @@
 
             function attachEventHandlers() {
                 if (!absentMode) {
-                    // TO selects (тільки в режимі присутності)
                     document.querySelectorAll('.to-select').forEach(select => {
                         select.onchange = (e) => {
                             const row = parseInt(select.dataset.row);
@@ -582,7 +583,6 @@
                         };
                     });
                     
-                    // Hours inputs - тепер TEXT, зберігає будь-яке значення
                     document.querySelectorAll('.hours-input').forEach(input => {
                         input.onchange = (e) => {
                             const row = parseInt(input.dataset.row);
@@ -593,7 +593,6 @@
                         };
                     });
                     
-                    // KTU selects
                     document.querySelectorAll('.ktu-select').forEach(select => {
                         select.onchange = (e) => {
                             const row = parseInt(select.dataset.row);
@@ -605,7 +604,6 @@
                         };
                     });
                     
-                    // Present action buttons
                     document.querySelectorAll('.action-btn').forEach(btn => {
                         btn.onclick = (e) => {
                             e.preventDefault();
@@ -617,7 +615,6 @@
                         };
                     });
                 } else {
-                    // Status selects (тільки в режимі відсутності)
                     document.querySelectorAll('.status-select').forEach(select => {
                         select.onchange = (e) => {
                             const row = parseInt(select.dataset.row);
@@ -629,7 +626,6 @@
                         };
                     });
                     
-                    // Absent action buttons
                     document.querySelectorAll('.absent-action-btn').forEach(btn => {
                         btn.onclick = (e) => {
                             e.preventDefault();
