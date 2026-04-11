@@ -173,13 +173,6 @@
             font-size: 12px;
             font-weight: bold;
         }
-        .suggestion-badge {
-            background: #e8ecf1;
-            padding: 4px 8px;
-            border-radius: 20px;
-            font-size: 10px;
-            color: #667eea;
-        }
         .warning-text {
             color: #f59e0b;
             font-size: 10px;
@@ -680,11 +673,6 @@
                     }
                     card.dataset.row = worker.row;
 
-                    let suggestionHtml = '';
-                    if (worker.suggested_to && !absentMode) {
-                        suggestionHtml = `<span class="suggestion-badge">📋 минула ТО: ${worker.suggested_to}</span>`;
-                    }
-
                     let warningHtml = '';
                     if (!worker.to && !worker.status && !absentMode) {
                         warningHtml = `<div class="warning-text">⚠️ Оберіть ТО</div>`;
@@ -756,7 +744,6 @@
                             <div class="worker-name">
                                 ${worker.isOutsourcer ? '<span class="outsourcer-badge">А</span>' : ''}
                                 ${escapeHtml(worker.fullname)}
-                                ${suggestionHtml}
                             </div>
                         </div>
                         <div class="worker-controls">
