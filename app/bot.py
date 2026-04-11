@@ -24,14 +24,14 @@ current_shift = 8
 # Словник для зберігання ролей користувачів
 user_roles = {}
 
-# ID адміністратора (Майстра) - ЗАМІНІТЬ НА ВАШ ТЕЛЕГРАМ ID
-MASTER_USER_ID = 8603605527  # ВАШ ID Telegram
+# ВАШ ТЕЛЕГРАМ ID - ЗАМІНІТЬ НА СВІЙ!
+MASTER_USER_ID = 123456789  # <- СЮДИ ВСТАВТЕ ВАШ ID
 
 def get_user_role(user_id: int) -> str:
     """Отримати роль користувача"""
     if user_id == MASTER_USER_ID:
         return 'master'
-    return user_roles.get(user_id, 'brigadier')  # за замовчуванням бригадир
+    return user_roles.get(user_id, 'brigadier')
 
 def is_master(user_id: int) -> bool:
     """Перевірити чи користувач майстер"""
@@ -61,38 +61,24 @@ async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or message.from_user.first_name
     
-    # Визначаємо роль
     if user_id == MASTER_USER_ID:
-        role_text = "👑 Майстер (Адміністратор)"
         await message.answer(
             f"🌟 *Вітаю, {username}!*\n\n"
-            f"Ви увійшли як *{role_text}*\n\n"
-            f"🏭 *Цех ДМТ* - облік працівників цеху ДМТ\n\n"
+            f"Ви увійшли як *👑 Майстер (Адміністратор)*\n\n"
+            f"🏭 *Цех ДМТ* - облік працівників\n\n"
             f"📋 *Ваші можливості:*\n"
-            f"• Відмітка присутності працівників\n"
-            f"• Вибір КТУ (0.9 - 1.3)\n"
-            f"• Фіксація невиходів (Вщ, В, На, Пр, Нз)\n"
-            f"• Перегляд даних за будь-яку дату\n"
-            f"• Додавання нових працівників\n"
-            f"• 👥 *Управління правами користувачів*\n\n"
-            f"Ви можете надавати права іншим користувачам через меню.",
+            f"• Всі функції без обмежень\n"
+            f"• 👥 Управління правами користувачів\n"
+            f"• Перегляд/редагування будь-якої дати",
             parse_mode="Markdown",
             reply_markup=main_keyboard(user_id)
         )
     else:
-        role_text = "🔧 Бригадир"
         await message.answer(
             f"🌟 *Вітаю, {username}!*\n\n"
-            f"Ви увійшли як *{role_text}*\n\n"
-            f"🏭 *Цех ДМТ* - облік працівників цеху ДМТ\n\n"
-            f"📋 *Ваші можливості:*\n"
-            f"• Відмітка присутності працівників\n"
-            f"• Вибір КТУ (0.9 - 1.3)\n"
-            f"• Фіксація невиходів (Вщ, В, На, Пр, Нз)\n"
-            f"• Додавання нових працівників\n"
-            f"• Перегляд даних за поточну дату\n\n"
-            f"⚠️ *Увага!* Ви можете вносити зміни лише за поточну дату.\n"
-            f"Для перегляду минулих дат зверніться до Майстра.",
+            f"Ви увійшли як *🔧 Бригадир*\n\n"
+            f"🏭 *Цех ДМТ* - облік працівників\n\n"
+            f"⚠️ Ви можете вносити зміни лише за *поточну дату*",
             parse_mode="Markdown",
             reply_markup=main_keyboard(user_id)
         )
@@ -104,56 +90,30 @@ async def help_command(message: types.Message):
     
     if role == 'master':
         help_text = """
-❓ *Довідка користувача (👑 Майстер)*
+❓ *Довідка (👑 Майстер)*
 
-*Основні функції:*
-• 🏭 **Цех ДМТ** - відкрити міні-додаток для обліку
+• 🏭 **Цех ДМТ** - відкрити міні-додаток
+• 👥 **Управління правами** - керування користувачами
 
 *В міні-додатку:*
-• ✅ **Присутній** - відмітити присутність з вибором КТУ
-• 📋 **Відмітити відсутніх** - вибрати статус (Вщ, В, На, Пр, Нз)
-• ➕ **Додати працівника** - додати нового працівника
-• 🔄 **Синхронізувати** - оновити дані в Google Sheets
-
-*Управління правами:*
-• 👥 **Управління правами** - додавання/зміна прав користувачів
-
-*Коефіцієнт КТУ:*
-0,9 | 1 | 1,1 | 1,2 | 1,3
-
-*Причини невиходу:*
-• Вщ - Вихідний
-• В - Відпустка
-• На - За свій рахунок
-• Пр - Прогул
-• Нз - Не з'явився
+• ✅ **Присутній** - відмітити присутність
+• 📋 **Відмітити відсутніх** - вибрати статус
+• ➕ **Додати працівника** - додати нового
+• 🔄 **Синхронізувати** - оновити дані
 """
     else:
         help_text = """
-❓ *Довідка користувача (🔧 Бригадир)*
+❓ *Довідка (🔧 Бригадир)*
 
-*Основні функції:*
-• 🏭 **Цех ДМТ** - відкрити міні-додаток для обліку
+• 🏭 **Цех ДМТ** - відкрити міні-додаток
 
 *В міні-додатку:*
-• ✅ **Присутній** - відмітити присутність з вибором КТУ
-• 📋 **Відмітити відсутніх** - вибрати статус (Вщ, В, На, Пр, Нз)
-• ➕ **Додати працівника** - додати нового працівника
-• 🔄 **Синхронізувати** - оновити дані в Google Sheets
+• ✅ **Присутній** - відмітити присутність
+• 📋 **Відмітити відсутніх** - вибрати статус
+• ➕ **Додати працівника** - додати нового
+• 🔄 **Синхронізувати** - оновити дані
 
-*Обмеження:*
-• ⚠️ Ви можете вносити зміни лише за *поточну дату*
-• Для перегляду минулих дат зверніться до Майстра
-
-*Коефіцієнт КТУ:*
-0,9 | 1 | 1,1 | 1,2 | 1,3
-
-*Причини невиходу:*
-• Вщ - Вихідний
-• В - Відпустка
-• На - За свій рахунок
-• Пр - Прогул
-• Нз - Не з'явився
+⚠️ Зміни доступні лише за *поточну дату*
 """
     await message.answer(help_text, parse_mode="Markdown")
 
@@ -164,7 +124,6 @@ async def manage_roles(message: types.Message):
         await message.answer("❌ У вас немає прав для цієї дії!")
         return
     
-    # Отримуємо список користувачів, які взаємодіяли з ботом
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="➕ Додати Майстра", callback_data="add_master")],
@@ -175,12 +134,7 @@ async def manage_roles(message: types.Message):
     )
     await message.answer(
         "👥 *Управління правами користувачів*\n\n"
-        "Тут ви можете:\n"
-        "• Додати користувача як Майстра (повні права)\n"
-        "• Додати користувача як Бригадира (обмежені права)\n"
-        "• Переглянути список всіх користувачів\n"
-        "• Видалити користувача\n\n"
-        "⚠️ *Увага:* Користувач повинен хоча б раз написати /start боту, щоб з'явитися в списку.",
+        "Виберіть дію:",
         parse_mode="Markdown",
         reply_markup=keyboard
     )
@@ -193,80 +147,54 @@ async def role_actions(callback: types.CallbackQuery):
         return
     
     if callback.data == "add_master":
-        await callback.message.answer(
-            "📝 *Додавання Майстра*\n\n"
-            "Введіть ID користувача Telegram, якому хочете дати права Майстра.\n"
-            "Як дізнатися ID? Надішліть `/id` будь-якому боту, наприклад @userinfobot.\n\n"
-            "Введіть ID:",
-            parse_mode="Markdown"
-        )
-        # Очікуємо відповідь
+        await callback.message.answer("Введіть ID користувача для прав Майстра:")
         @dp.message_handler()
         async def add_master_handler(msg: types.Message):
             try:
                 target_id = int(msg.text.strip())
                 user_roles[target_id] = 'master'
-                await msg.answer(f"✅ Користувач з ID `{target_id}` отримав права Майстра!", parse_mode="Markdown")
+                await msg.answer(f"✅ Користувач {target_id} став Майстром!")
             except:
-                await msg.answer("❌ Неправильний ID. Спробуйте ще раз (введіть тільки цифри).")
+                await msg.answer("❌ Неправильний ID")
     
     elif callback.data == "add_brigadier":
-        await callback.message.answer(
-            "📝 *Додавання Бригадира*\n\n"
-            "Введіть ID користувача Telegram, якому хочете дати права Бригадира.\n\n"
-            "Введіть ID:",
-            parse_mode="Markdown"
-        )
+        await callback.message.answer("Введіть ID користувача для прав Бригадира:")
         @dp.message_handler()
         async def add_brigadier_handler(msg: types.Message):
             try:
                 target_id = int(msg.text.strip())
                 user_roles[target_id] = 'brigadier'
-                await msg.answer(f"✅ Користувач з ID `{target_id}` отримав права Бригадира!", parse_mode="Markdown")
+                await msg.answer(f"✅ Користувач {target_id} став Бригадиром!")
             except:
-                await msg.answer("❌ Неправильний ID. Спробуйте ще раз (введіть тільки цифри).")
+                await msg.answer("❌ Неправильний ID")
     
     elif callback.data == "list_users":
-        if not user_roles:
-            await callback.message.answer(
-                "📋 *Список користувачів порожній*\n\n"
-                "Користувачі з'являться тут, коли вони:\n"
-                "1. Напишуть `/start` боту\n"
-                "2. Ви додасте їх вручну через меню",
-                parse_mode="Markdown"
-            )
-        else:
-            text = "📋 *Список користувачів:*\n\n"
-            # Додаємо майстра (адміністратора)
-            text += f"• `{MASTER_USER_ID}` - 👑 Майстер (Адміністратор)\n"
-            for uid, role in user_roles.items():
-                if uid != MASTER_USER_ID:
-                    role_icon = "👑 Майстер" if role == 'master' else "🔧 Бригадир"
-                    text += f"• `{uid}` - {role_icon}\n"
-            await callback.message.answer(text, parse_mode="Markdown")
+        text = "📋 *Список користувачів:*\n\n"
+        text += f"• `{MASTER_USER_ID}` - 👑 Майстер (Адмін)\n"
+        for uid, role in user_roles.items():
+            if uid != MASTER_USER_ID:
+                icon = "👑" if role == 'master' else "🔧"
+                text += f"• `{uid}` - {icon} {role}\n"
+        if len(user_roles) == 0:
+            text += "Немає додаткових користувачів"
+        await callback.message.answer(text, parse_mode="Markdown")
     
     elif callback.data == "remove_user":
-        await callback.message.answer(
-            "📝 *Видалення користувача*\n\n"
-            "Введіть ID користувача, якого хочете видалити зі списку прав.\n"
-            "(Користувач отримає права Бригадира за замовчуванням)\n\n"
-            "Введіть ID:",
-            parse_mode="Markdown"
-        )
+        await callback.message.answer("Введіть ID користувача для видалення:")
         @dp.message_handler()
         async def remove_user_handler(msg: types.Message):
             try:
                 target_id = int(msg.text.strip())
                 if target_id == MASTER_USER_ID:
-                    await msg.answer("❌ Не можна видалити права Адміністратора!")
+                    await msg.answer("❌ Не можна видалити Адміністратора!")
                     return
                 if target_id in user_roles:
                     del user_roles[target_id]
-                    await msg.answer(f"✅ Користувач з ID `{target_id}` видалений. Тепер він отримає права Бригадира за замовчуванням.", parse_mode="Markdown")
+                    await msg.answer(f"✅ Користувача {target_id} видалено")
                 else:
-                    await msg.answer(f"❌ Користувач з ID `{target_id}` не знайдений у списку.", parse_mode="Markdown")
+                    await msg.answer(f"❌ Користувач {target_id} не знайдений")
             except:
-                await msg.answer("❌ Неправильний ID. Спробуйте ще раз (введіть тільки цифри).")
+                await msg.answer("❌ Неправильний ID")
     
     await callback.answer()
 
@@ -274,7 +202,7 @@ async def role_actions(callback: types.CallbackQuery):
 async def echo(message: types.Message):
     user_id = message.from_user.id
     await message.answer(
-        "🙏 Будь ласка, використовуйте кнопки меню для навігації.",
+        "🙏 Використовуйте кнопки меню.",
         reply_markup=main_keyboard(user_id)
     )
 
