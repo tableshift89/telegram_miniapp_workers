@@ -90,15 +90,15 @@ async def cmd_start(message: types.Message):
     
     if user_id == MASTER_USER_ID:
         await message.answer(
-            f"🌟 *Вітаю, {username}!*\n\n"
-            f"Ви увійшли як *🧢 Майстер*\n\n"
-            f"🏭 *Управління цехами:*\n"
-            f"• Цех ДМТ\n"
-            f"• Цех Пакування\n\n"
-            f"📋 *Ваші можливості:*\n"
-            f"• Всі функції без обмежень\n"
-            f"• 👥 Управління правами користувачів\n"
-            f"• Призначення доступу до цехів",
+            "🌟 *Вітаю, " + username + "!*\n\n"
+            "Ви увійшли як *🧢 Майстер*\n\n"
+            "🏭 *Управління цехами:*\n"
+            "• Цех ДМТ\n"
+            "• Цех Пакування\n\n"
+            "📋 *Ваші можливості:*\n"
+            "• Всі функції без обмежень\n"
+            "• 👥 Управління правами користувачів\n"
+            "• Призначення доступу до цехів",
             parse_mode="Markdown",
             reply_markup=main_keyboard(user_id)
         )
@@ -133,10 +133,12 @@ async def help_command(message: types.Message):
 • 📋 **Відмітити відсутніх** - вибрати статус
 • ➕ **Додати працівника** - додати нового
 • 🔄 **Синхронізувати** - оновити дані
-
-{'*Управління правами:*\n• 👥 Управління правами - керування користувачами' if role == 'master' else ''}
-{'⚠️ Зміни доступні лише за *поточну дату*' if role != 'master' else ''}
 """
+    if role == 'master':
+        help_text += "\n*Управління правами:*\n• 👥 Управління правами - керування користувачами"
+    if role != 'master':
+        help_text += "\n⚠️ Зміни доступні лише за *поточну дату*"
+    
     await message.answer(help_text, parse_mode="Markdown")
 
 @dp.message_handler(lambda msg: msg.text == "👥 Управління правами")
@@ -164,7 +166,7 @@ async def role_actions(callback: types.CallbackQuery):
         await callback.message.answer(
             "📝 *Додавання Майстра 🧢*\n\n"
             "Введіть ID користувача Telegram.\n"
-            "Як дізнатися ID? Надішліть `/id` боту @userinfobot.\n\n"
+            "Як дізнатися ID? Надішліть /id боту @userinfobot.\n\n"
             "Введіть ID:",
             parse_mode="Markdown"
         )
@@ -177,7 +179,6 @@ async def role_actions(callback: types.CallbackQuery):
                     await msg.answer("❌ Це ви! Ви вже Майстер.")
                     return
                 user_roles[target_id] = 'master'
-                # За замовчуванням даємо доступ до обох цехів
                 user_workshop_access[target_id] = ['DMT', 'Пакування']
                 await msg.answer(f"✅ Користувач з ID `{target_id}` отримав права 🧢 Майстра!\n📦 Доступ: ДМТ, Пакування", parse_mode="Markdown")
             except:
@@ -199,7 +200,6 @@ async def role_actions(callback: types.CallbackQuery):
                     await msg.answer("❌ Це ви! Ви Майстер, не можете стати Бригадиром.")
                     return
                 user_roles[target_id] = 'brigadier'
-                # За замовчуванням даємо доступ тільки до ДМТ
                 user_workshop_access[target_id] = ['DMT']
                 await msg.answer(f"✅ Користувач з ID `{target_id}` отримав права 👒 Бригадира!\n📦 Доступ: ДМТ", parse_mode="Markdown")
             except:
@@ -220,7 +220,7 @@ async def role_actions(callback: types.CallbackQuery):
         else:
             text += "\n*Немає додаткових користувачів*"
         
-        text += "\n\n💡 *Як дізнатися ID?*\nНадішліть `/id` боту @userinfobot"
+        text += "\n\n💡 *Як дізнатися ID?*\nНадішліть /id боту @userinfobot"
         
         await callback.message.answer(text, parse_mode="Markdown")
         await callback.message.answer("👥 *Управління правами*", reply_markup=admin_keyboard())
@@ -300,10 +300,13 @@ async def role_actions(callback: types.CallbackQuery):
                 
                 current_access = user_workshop_access.get(target_id, ['DMT'])
                 
+                dmt_status = " ✔" if 'DMT' in current_access else ""
+                pack_status = " ✔" if 'Пакування' in current_access else ""
+                
                 keyboard = InlineKeyboardMarkup(
                     inline_keyboard=[
-                        [InlineKeyboardButton(text="✅ Цех ДМТ" + (" ✔" if 'DMT' in current_access else ""), callback_data=f"toggle_DMT_{target_id}")],
-                        [InlineKeyboardButton(text="✅ Цех Пакування" + (" ✔" if 'Пакування' in current_access else ""), callback_data=f"toggle_Pack_{target_id}")],
+                        [InlineKeyboardButton(text=f"🏭 Цех ДМТ{dmt_status}", callback_data=f"toggle_DMT_{target_id}")],
+                        [InlineKeyboardButton(text=f"📦 Цех Пакування{pack_status}", callback_data=f"toggle_Pack_{target_id}")],
                         [InlineKeyboardButton(text="🔙 Назад", callback_data="workshop_access_back")]
                     ]
                 )
@@ -330,7 +333,7 @@ async def toggle_workshop(callback: types.CallbackQuery):
         return
     
     parts = callback.data.split("_")
-    action = parts[1]  # DMT or Pack
+    action = parts[1]
     target_id = int(parts[2])
     
     if target_id not in user_workshop_access:
@@ -349,10 +352,13 @@ async def toggle_workshop(callback: types.CallbackQuery):
     
     current_access = user_workshop_access[target_id]
     
+    dmt_status = " ✔" if 'DMT' in current_access else ""
+    pack_status = " ✔" if 'Пакування' in current_access else ""
+    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Цех ДМТ" + (" ✔" if 'DMT' in current_access else ""), callback_data=f"toggle_DMT_{target_id}")],
-            [InlineKeyboardButton(text="✅ Цех Пакування" + (" ✔" if 'Пакування' in current_access else ""), callback_data=f"toggle_Pack_{target_id}")],
+            [InlineKeyboardButton(text=f"🏭 Цех ДМТ{dmt_status}", callback_data=f"toggle_DMT_{target_id}")],
+            [InlineKeyboardButton(text=f"📦 Цех Пакування{pack_status}", callback_data=f"toggle_Pack_{target_id}")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="workshop_access_back")]
         ]
     )
