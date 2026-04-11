@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Облік цеху</title>
+    <title>Облік цеху ДМТ</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/uk.js"></script>
@@ -45,6 +45,22 @@
             border-bottom: 1px solid #e0e0e0;
         }
         h1 { font-size: 22px; color: #333; }
+        .role-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+            font-weight: normal;
+        }
+        .role-master {
+            background: #f59e0b;
+            color: white;
+        }
+        .role-brigadier {
+            background: #10b981;
+            color: white;
+        }
         .mode-badge {
             display: inline-block;
             padding: 4px 12px;
@@ -127,6 +143,10 @@
             flex-shrink: 0;
         }
         .add-worker-btn:active { transform: scale(0.95); }
+        .add-worker-btn.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
         .workers-list { margin: 16px 0; }
         .worker-card {
             background: white;
@@ -234,6 +254,10 @@
             transition: transform 0.2s;
         }
         .action-btn:active { transform: scale(0.95); }
+        .action-btn.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
         .absent-action-btn {
             background: #f59e0b;
             border: none;
@@ -249,6 +273,10 @@
             transition: transform 0.2s;
         }
         .absent-action-btn:active { transform: scale(0.95); }
+        .absent-action-btn.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
         .other-btn {
             background: #8b5cf6;
             border: none;
@@ -395,14 +423,30 @@
             background: #ef4444;
             color: white;
         }
+        .readonly-warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 12px;
+            padding: 8px;
+            text-align: center;
+            margin-bottom: 12px;
+            font-size: 12px;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏭 ЦЕХ <span id="workshop-name"></span>
+            <h1>🏭 ЦЕХ ДМТ
+                <span id="role-badge" class="role-badge role-brigadier">🔧 Бригадир</span>
                 <span id="mode-badge" class="mode-badge mode-normal">✅ Режим присутності</span>
             </h1>
+        </div>
+
+        <div id="readonly-warning" class="readonly-warning" style="display: none;">
+            ⚠️ У вас права Бригадира. Ви можете лише переглядати дані за минулі дати. 
+            Внесення змін доступне лише для поточної дати.
         </div>
 
         <div class="controls-row">
@@ -461,15 +505,43 @@
             tg.setBackgroundColor('#667eea');
             tg.setHeaderColor('#764ba2');
 
-            let workshop = decodeURIComponent(window.location.pathname.split('/').pop());
-            if (workshop === 'DMT') workshop = 'ДМТ';
-            document.getElementById('workshop-name').innerText = workshop;
+            // Отримуємо роль з URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const userRole = urlParams.get('role') || 'brigadier';
+            const isMaster = userRole === 'master';
+            
+            // Відображаємо роль
+            const roleBadge = document.getElementById('role-badge');
+            if (isMaster) {
+                roleBadge.innerHTML = '👑 Майстер';
+                roleBadge.className = 'role-badge role-master';
+            } else {
+                roleBadge.innerHTML = '🔧 Бригадир';
+                roleBadge.className = 'role-badge role-brigadier';
+            }
 
             let selectedDate = new Date().toISOString().split('T')[0];
+            const todayDate = new Date().toISOString().split('T')[0];
             let workersData = [];
             let operations = ['601', '602', '603', '475', '1088', '1256'];
             let absentMode = false;
             let defaultShiftHours = 8;
+
+            // Перевірка чи можна редагувати (тільки для майстра або поточна дата)
+            function isEditable() {
+                if (isMaster) return true;
+                return selectedDate === todayDate;
+            }
+
+            // Показуємо попередження для бригадира при виборі минулої дати
+            function checkReadonlyWarning() {
+                const warning = document.getElementById('readonly-warning');
+                if (!isMaster && selectedDate !== todayDate) {
+                    warning.style.display = 'block';
+                } else {
+                    warning.style.display = 'none';
+                }
+            }
 
             const modeBadge = document.getElementById('mode-badge');
             const shiftSelect = document.getElementById('shift-select');
@@ -526,6 +598,10 @@
             }
 
             function applyHoursToAll() {
+                if (!isEditable()) {
+                    showToast('❌ Редагування доступне лише для поточної дати!', 'error');
+                    return;
+                }
                 const newHours = shiftSelect.value;
                 defaultShiftHours = parseInt(newHours);
                 workersData.forEach(worker => {
@@ -536,13 +612,17 @@
             }
 
             async function addNewWorker(fullname, isOutsourcer) {
+                if (!isEditable()) {
+                    showToast('❌ Додавання працівників доступне лише для поточної дати!', 'error');
+                    return;
+                }
                 try {
                     const response = await fetch('/api/add-worker', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             fullname: fullname,
-                            workshop: workshop === 'ДМТ' ? 'DMT' : 'Пакування',
+                            workshop: 'DMT',
                             isOutsourcer: isOutsourcer
                         })
                     });
@@ -568,6 +648,10 @@
             }
 
             async function markPresent(worker) {
+                if (!isEditable()) {
+                    showToast('❌ Редагування доступне лише для поточної дати!', 'error');
+                    return;
+                }
                 if (!validateWorker(worker)) return;
                 
                 try {
@@ -606,6 +690,10 @@
             }
 
             async function markAbsent(worker) {
+                if (!isEditable()) {
+                    showToast('❌ Редагування доступне лише для поточної дати!', 'error');
+                    return;
+                }
                 if (!worker.status) {
                     showToast('❌ Виберіть статус відсутності!', 'error');
                     return;
@@ -662,6 +750,8 @@
                     return;
                 }
 
+                const editable = isEditable();
+
                 workersData.forEach(worker => {
                     const card = document.createElement('div');
                     card.className = 'worker-card';
@@ -674,7 +764,7 @@
                     card.dataset.row = worker.row;
 
                     let warningHtml = '';
-                    if (!worker.to && !worker.status && !absentMode) {
+                    if (!worker.to && !worker.status && !absentMode && editable) {
                         warningHtml = `<div class="warning-text">⚠️ Оберіть ТО</div>`;
                     }
 
@@ -684,7 +774,7 @@
                         controlsHtml = `
                             <div class="field-group">
                                 <label>📊 Статус:</label>
-                                <select class="status-select" data-row="${worker.row}">
+                                <select class="status-select" data-row="${worker.row}" ${!editable ? 'disabled' : ''}>
                                     <option value="">Виберіть статус</option>
                                     <option value="Вщ" ${worker.status === 'Вщ' ? 'selected' : ''}>🏖️ Вихідний (Вщ)</option>
                                     <option value="В" ${worker.status === 'В' ? 'selected' : ''}>🏖️ Відпустка (В)</option>
@@ -693,7 +783,7 @@
                                     <option value="Нз" ${worker.status === 'Нз' ? 'selected' : ''}>❌ Не з\'явився (Нз)</option>
                                 </select>
                             </div>
-                            <button class="absent-action-btn" data-row="${worker.row}">✔️</button>
+                            <button class="absent-action-btn ${!editable ? 'disabled' : ''}" data-row="${worker.row}" ${!editable ? 'disabled' : ''}>✔️</button>
                         `;
                     } else {
                         let toSelectHtml = '';
@@ -701,18 +791,18 @@
                             toSelectHtml = `
                                 <div class="field-group">
                                     <label>🔧 ТО (кастомне):</label>
-                                    <input type="text" class="custom-input" id="custom-input-${worker.row}" placeholder="Введіть ТО" value="${worker.to || ''}">
-                                    <button class="other-btn" onclick="window.saveCustomValue(${worker.row}, document.getElementById('custom-input-${worker.row}'))">✅ Зберегти</button>
+                                    <input type="text" class="custom-input" id="custom-input-${worker.row}" placeholder="Введіть ТО" value="${worker.to || ''}" ${!editable ? 'disabled' : ''}>
+                                    ${editable ? `<button class="other-btn" onclick="window.saveCustomValue(${worker.row}, document.getElementById('custom-input-${worker.row}'))">✅ Зберегти</button>` : ''}
                                 </div>
                             `;
                         } else {
                             toSelectHtml = `
                                 <div class="field-group">
                                     <label>🔧 ТО:</label>
-                                    <select class="to-select" data-row="${worker.row}">
+                                    <select class="to-select" data-row="${worker.row}" ${!editable ? 'disabled' : ''}>
                                         <option value="">Виберіть ТО</option>
                                         ${operations.map(op => `<option value="${op}" ${worker.to === op ? 'selected' : ''}>${op}</option>`).join('')}
-                                        <option value="__custom__">✏️ Інше (ввести вручну)</option>
+                                        ${editable ? '<option value="__custom__">✏️ Інше (ввести вручну)</option>' : ''}
                                     </select>
                                 </div>
                             `;
@@ -722,11 +812,11 @@
                             ${toSelectHtml}
                             <div class="field-group">
                                 <label>⏱️ Години:</label>
-                                <input type="text" class="hours-input" data-row="${worker.row}" value="${worker.hours || defaultShiftHours}" placeholder="год">
+                                <input type="text" class="hours-input" data-row="${worker.row}" value="${worker.hours || defaultShiftHours}" placeholder="год" ${!editable ? 'disabled' : ''}>
                             </div>
                             <div class="field-group">
                                 <label>📊 КТУ:</label>
-                                <select class="ktu-select" data-row="${worker.row}">
+                                <select class="ktu-select" data-row="${worker.row}" ${!editable ? 'disabled' : ''}>
                                     <option value="0.9" ${worker.ktu === 0.9 ? 'selected' : ''}>0.9</option>
                                     <option value="1" ${worker.ktu === 1 || !worker.ktu ? 'selected' : ''}>1</option>
                                     <option value="1.1" ${worker.ktu === 1.1 ? 'selected' : ''}>1.1</option>
@@ -734,7 +824,7 @@
                                     <option value="1.3" ${worker.ktu === 1.3 ? 'selected' : ''}>1.3</option>
                                 </select>
                             </div>
-                            <button class="action-btn" data-row="${worker.row}">✔️</button>
+                            <button class="action-btn ${!editable ? 'disabled' : ''}" data-row="${worker.row}" ${!editable ? 'disabled' : ''}>✔️</button>
                             ${warningHtml}
                         `;
                     }
@@ -757,9 +847,12 @@
             }
 
             function attachEventHandlers() {
+                const editable = isEditable();
+                
                 if (!absentMode) {
                     document.querySelectorAll('.to-select').forEach(select => {
                         select.onchange = (e) => {
+                            if (!editable) return;
                             const row = parseInt(select.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker && select.value !== '__custom__') {
@@ -775,6 +868,7 @@
                     
                     document.querySelectorAll('.hours-input').forEach(input => {
                         input.onchange = (e) => {
+                            if (!editable) return;
                             const row = parseInt(input.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker) {
@@ -785,6 +879,7 @@
                     
                     document.querySelectorAll('.ktu-select').forEach(select => {
                         select.onchange = (e) => {
+                            if (!editable) return;
                             const row = parseInt(select.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker) {
@@ -797,6 +892,7 @@
                     document.querySelectorAll('.action-btn').forEach(btn => {
                         btn.onclick = (e) => {
                             e.preventDefault();
+                            if (!editable) return;
                             const row = parseInt(btn.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker) {
@@ -807,6 +903,7 @@
                 } else {
                     document.querySelectorAll('.status-select').forEach(select => {
                         select.onchange = (e) => {
+                            if (!editable) return;
                             const row = parseInt(select.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker) {
@@ -819,6 +916,7 @@
                     document.querySelectorAll('.absent-action-btn').forEach(btn => {
                         btn.onclick = (e) => {
                             e.preventDefault();
+                            if (!editable) return;
                             const row = parseInt(btn.dataset.row);
                             const worker = workersData.find(w => w.row === row);
                             if (worker) {
@@ -830,6 +928,11 @@
             }
 
             async function syncToSheet() {
+                if (!isEditable()) {
+                    showToast('❌ Синхронізація доступна лише для поточної дати!', 'error');
+                    return;
+                }
+                
                 const syncBtn = document.getElementById('sync-btn');
                 syncBtn.disabled = true;
                 syncBtn.innerHTML = '🔄 Синхронізація...';
@@ -883,6 +986,7 @@
             }
 
             window.saveCustomValue = function(row, inputEl) {
+                if (!isEditable()) return;
                 const worker = workersData.find(w => w.row === row);
                 if (worker) {
                     worker.to = inputEl.value;
@@ -892,8 +996,19 @@
                 }
             };
 
+            // Додавання працівника (тільки для майстра)
+            const addWorkerBtn = document.getElementById('add-worker-btn');
+            if (!isMaster) {
+                addWorkerBtn.classList.add('disabled');
+                addWorkerBtn.disabled = true;
+            }
+            
             const modal = document.getElementById('new-worker-modal');
-            document.getElementById('add-worker-btn').onclick = () => {
+            addWorkerBtn.onclick = () => {
+                if (!isMaster) {
+                    showToast('❌ Додавання працівників доступне лише для Майстра!', 'error');
+                    return;
+                }
                 modal.style.display = 'flex';
             };
             document.getElementById('cancel-add-worker').onclick = () => {
@@ -902,6 +1017,7 @@
                 document.querySelector('input[name="worker-type"][value="official"]').checked = true;
             };
             document.getElementById('confirm-add-worker').onclick = async () => {
+                if (!isMaster) return;
                 const name = document.getElementById('new-worker-name').value.trim();
                 const isOutsourcer = document.querySelector('input[name="worker-type"]:checked').value === 'outsourcer';
                 if (name) {
@@ -931,11 +1047,16 @@
                     btn.innerHTML = '📋 Відмітити відсутніх';
                     modeBadge.innerHTML = '✅ Режим присутності';
                     modeBadge.className = 'mode-badge mode-normal';
+                    checkReadonlyWarning();
                     loadShiftData();
                 }
             });
 
             document.getElementById('absent-mode-btn').onclick = () => {
+                if (!isEditable()) {
+                    showToast('❌ Редагування доступне лише для поточної дати!', 'error');
+                    return;
+                }
                 absentMode = !absentMode;
                 const btn = document.getElementById('absent-mode-btn');
                 if (absentMode) {
@@ -957,6 +1078,7 @@
             checkConnection();
             loadOperations();
             loadShiftData();
+            checkReadonlyWarning();
             setInterval(checkConnection, 30000);
         })();
     </script>
