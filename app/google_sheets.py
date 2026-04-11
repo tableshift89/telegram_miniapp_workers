@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 SPREADSHEET_ID = '1TZMudoqr2GbOZCbfWSWJLqVZ67pZCck766OyDAD11pU'
 
+# Назва головного аркуша (ваш основний табель)
+MAIN_SHEET = 'Головна'
 # Назва аркуша з довідником ТО
 REFERENCE_SHEET = 'Довідник ТО'
-# Назва головного аркуша (колишній 07.04.26)
-MAIN_SHEET = 'ГОЛОВНА'
 
 OPERATION_CODES = ['601', '602', '603', '475', '1088', '1256']
 
@@ -64,11 +64,12 @@ def get_default_to_for_worker(fullname: str):
         worksheet = sheet.worksheet(REFERENCE_SHEET)
         all_data = worksheet.get_all_values()
         
-        for row in all_data[1:]:
+        for row in all_data[1:]:  # пропускаємо заголовок
             if len(row) >= 2:
                 name = str(row[0]).strip()
                 default_to = str(row[1]).strip()
                 if name == fullname and default_to:
+                    logger.info(f"📋 Found default TO for {fullname}: {default_to}")
                     return default_to
         return None
     except Exception as e:
