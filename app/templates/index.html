@@ -69,27 +69,72 @@
             font-size: 12px;
             margin-top: 6px;
         }
-        .date-selector {
+        .controls-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
             margin: 12px 0;
+            flex-wrap: wrap;
+        }
+        .date-selector {
+            flex: 2;
             padding: 8px;
             background: #f5f5f5;
             border-radius: 16px;
         }
         .date-selector label {
             display: block;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 600;
             color: #555;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         #date-picker {
             width: 100%;
-            padding: 10px;
+            padding: 8px;
             border: 1px solid #ddd;
-            border-radius: 24px;
-            font-size: 14px;
+            border-radius: 20px;
+            font-size: 12px;
             text-align: center;
         }
+        .hours-selector {
+            flex: 1;
+            min-width: 100px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 16px;
+        }
+        .hours-selector label {
+            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 2px;
+        }
+        .hours-selector select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 12px;
+            background: white;
+        }
+        .add-worker-btn {
+            background: #10b981;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 24px;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .add-worker-btn:active { transform: scale(0.95); }
         .workers-list { margin: 16px 0; }
         .worker-card {
             background: white;
@@ -285,6 +330,56 @@
             from { opacity: 0; transform: translate(-50%, 20px); }
             to { opacity: 1; transform: translate(-50%, 0); }
         }
+        .new-worker-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            width: 90%;
+            max-width: 320px;
+        }
+        .modal-content h3 {
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 28px;
+            margin-bottom: 16px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 28px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .modal-buttons button:first-child {
+            background: #10b981;
+            color: white;
+        }
+        .modal-buttons button:last-child {
+            background: #ef4444;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -293,12 +388,22 @@
             <h1>🏭 ЦЕХ <span id="workshop-name"></span>
                 <span id="mode-badge" class="mode-badge mode-normal">✅ Режим присутності</span>
             </h1>
-            <div class="shift-info">⚙️ Зміна: <span id="shift-hours">8</span> год</div>
         </div>
 
-        <div class="date-selector">
-            <label>📅 Дата:</label>
-            <input type="text" id="date-picker" placeholder="Виберіть дату">
+        <div class="controls-row">
+            <div class="date-selector">
+                <label>📅 Дата:</label>
+                <input type="text" id="date-picker" placeholder="Виберіть дату">
+            </div>
+            <div class="hours-selector">
+                <label>⚙️ Зміна:</label>
+                <select id="shift-select">
+                    <option value="7">7 годин</option>
+                    <option value="8" selected>8 годин</option>
+                    <option value="9">9 годин</option>
+                </select>
+            </div>
+            <button id="add-worker-btn" class="add-worker-btn" title="Додати працівника">+</button>
         </div>
 
         <div class="workers-list" id="workers-list">
@@ -314,15 +419,22 @@
         </div>
     </div>
 
+    <div id="new-worker-modal" class="new-worker-modal" style="display: none;">
+        <div class="modal-content">
+            <h3>➕ Додати нового працівника</h3>
+            <input type="text" id="new-worker-name" placeholder="Прізвище Ім'я По батькові">
+            <div class="modal-buttons">
+                <button id="confirm-add-worker">Додати</button>
+                <button id="cancel-add-worker">Скасувати</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function() {
             const tg = window.Telegram.WebApp;
-            
-            // Розгортання на весь екран
             tg.expand();
             tg.ready();
-            
-            // Налаштування кольорів
             tg.setBackgroundColor('#667eea');
             tg.setHeaderColor('#764ba2');
 
@@ -334,8 +446,10 @@
             let workersData = [];
             let operations = ['601', '602', '603', '475', '1088', '1256'];
             let absentMode = false;
+            let defaultShiftHours = 8;
 
             const modeBadge = document.getElementById('mode-badge');
+            const shiftSelect = document.getElementById('shift-select');
 
             async function checkConnection() {
                 const indicator = document.getElementById('status-indicator');
@@ -374,12 +488,53 @@
                     const data = await res.json();
                     if (data.ok) {
                         workersData = data.workers || [];
+                        // Застосовуємо вибрані години до всіх, у кого немає годин
+                        workersData.forEach(worker => {
+                            if (!worker.hours || worker.hours === '') {
+                                worker.hours = defaultShiftHours.toString();
+                            }
+                        });
                         renderWorkersList();
                     } else {
                         container.innerHTML = `<div class="error">❌ ${data.error}</div>`;
                     }
                 } catch(e) {
                     container.innerHTML = '<div class="error">❌ Помилка завантаження</div>';
+                }
+            }
+
+            // Функція для застосування годин до всіх працівників
+            function applyHoursToAll() {
+                const newHours = shiftSelect.value;
+                defaultShiftHours = parseInt(newHours);
+                workersData.forEach(worker => {
+                    worker.hours = newHours;
+                });
+                renderWorkersList();
+                showToast(`✅ Години змінено на ${newHours} для всіх`, 'success');
+            }
+
+            // Додавання нового працівника
+            async function addNewWorker(fullname) {
+                try {
+                    const response = await fetch('/api/worker', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fullname: fullname,
+                            workshop: workshop === 'ДМТ' ? 'DMT' : 'Пакування'
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.ok) {
+                        showToast(`✅ Працівника ${fullname} додано!`, 'success');
+                        await loadShiftData();
+                    } else {
+                        showToast('❌ Помилка додавання працівника', 'error');
+                    }
+                } catch(e) {
+                    console.error('Error adding worker:', e);
+                    showToast('❌ Помилка додавання працівника', 'error');
                 }
             }
 
@@ -394,7 +549,7 @@
                                 row: worker.row,
                                 fullname: worker.fullname,
                                 to: worker.to || '',
-                                hours: worker.hours || '9',
+                                hours: worker.hours || defaultShiftHours.toString(),
                                 status: null,
                                 ktu: worker.ktu || 1
                             }]
@@ -533,7 +688,7 @@
                             ${toSelectHtml}
                             <div class="field-group">
                                 <label>⏱️ Години:</label>
-                                <input type="text" class="hours-input" data-row="${worker.row}" value="${worker.hours || '9'}" placeholder="год (напр. 9/2)">
+                                <input type="text" class="hours-input" data-row="${worker.row}" value="${worker.hours || defaultShiftHours}" placeholder="год">
                             </div>
                             <div class="field-group">
                                 <label>📊 КТУ:</label>
@@ -648,7 +803,7 @@
                     row: worker.row,
                     fullname: worker.fullname,
                     to: worker.to || '',
-                    hours: worker.hours || '',
+                    hours: worker.hours || defaultShiftHours.toString(),
                     status: worker.status || null,
                     ktu: worker.ktu || null
                 }));
@@ -701,6 +856,32 @@
                     showToast(`✅ ТО змінено на: ${inputEl.value}`, 'success');
                 }
             };
+
+            // Модальне вікно для додавання працівника
+            const modal = document.getElementById('new-worker-modal');
+            document.getElementById('add-worker-btn').onclick = () => {
+                modal.style.display = 'flex';
+            };
+            document.getElementById('cancel-add-worker').onclick = () => {
+                modal.style.display = 'none';
+                document.getElementById('new-worker-name').value = '';
+            };
+            document.getElementById('confirm-add-worker').onclick = async () => {
+                const name = document.getElementById('new-worker-name').value.trim();
+                if (name) {
+                    await addNewWorker(name);
+                    modal.style.display = 'none';
+                    document.getElementById('new-worker-name').value = '';
+                } else {
+                    showToast('❌ Введіть ПІБ працівника', 'error');
+                }
+            };
+            modal.onclick = (e) => {
+                if (e.target === modal) modal.style.display = 'none';
+            };
+
+            // Дропдаун для зміни годин
+            shiftSelect.onchange = applyHoursToAll;
 
             flatpickr("#date-picker", {
                 locale: "uk",
