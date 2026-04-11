@@ -143,10 +143,6 @@
             flex-shrink: 0;
         }
         .add-worker-btn:active { transform: scale(0.95); }
-        .add-worker-btn.disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
         .workers-list { margin: 16px 0; }
         .worker-card {
             background: white;
@@ -612,6 +608,7 @@
             }
 
             async function addNewWorker(fullname, isOutsourcer) {
+                // Додавання працівника доступне для всіх, але тільки для поточної дати
                 if (!isEditable()) {
                     showToast('❌ Додавання працівників доступне лише для поточної дати!', 'error');
                     return;
@@ -996,17 +993,11 @@
                 }
             };
 
-            // Додавання працівника (тільки для майстра)
-            const addWorkerBtn = document.getElementById('add-worker-btn');
-            if (!isMaster) {
-                addWorkerBtn.classList.add('disabled');
-                addWorkerBtn.disabled = true;
-            }
-            
+            // Кнопка + доступна для всіх, але з перевіркою дати
             const modal = document.getElementById('new-worker-modal');
-            addWorkerBtn.onclick = () => {
-                if (!isMaster) {
-                    showToast('❌ Додавання працівників доступне лише для Майстра!', 'error');
+            document.getElementById('add-worker-btn').onclick = () => {
+                if (!isEditable()) {
+                    showToast('❌ Додавання працівників доступне лише для поточної дати!', 'error');
                     return;
                 }
                 modal.style.display = 'flex';
@@ -1017,7 +1008,6 @@
                 document.querySelector('input[name="worker-type"][value="official"]').checked = true;
             };
             document.getElementById('confirm-add-worker').onclick = async () => {
-                if (!isMaster) return;
                 const name = document.getElementById('new-worker-name').value.trim();
                 const isOutsourcer = document.querySelector('input[name="worker-type"]:checked').value === 'outsourcer';
                 if (name) {
