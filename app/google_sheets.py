@@ -64,12 +64,11 @@ def get_default_to_for_worker(fullname: str):
         worksheet = sheet.worksheet(REFERENCE_SHEET)
         all_data = worksheet.get_all_values()
         
-        for row in all_data[1:]:  # пропускаємо заголовок
+        for row in all_data[1:]:
             if len(row) >= 2:
                 name = str(row[0]).strip()
                 default_to = str(row[1]).strip()
                 if name == fullname and default_to:
-                    logger.info(f"📋 Found default TO for {fullname}: {default_to}")
                     return default_to
         return None
     except Exception as e:
@@ -170,10 +169,8 @@ def get_shift_data(date_str: str):
             current_hours = str(row[hours_col]).strip() if hours_col < len(row) else ''
             current_ktu = str(row[value_col]).strip() if value_col < len(row) else ''
             
-            # Отримуємо стандартну ТО з довідника
             default_to = get_default_to_for_worker(fullname)
             
-            # Якщо немає поточної ТО, але є стандартна - використовуємо її
             if not current_to and default_to:
                 current_to = default_to
             
@@ -273,7 +270,7 @@ def update_shift_data(date_str: str, workers_data: list):
         return {"ok": False, "error": str(e)}
 
 def add_worker_to_sheet(fullname: str, workshop: str, is_outsourcer: bool = False):
-    """Додати нового працівника в кінець списку"""
+    """Додати нового працівника в Google Sheets"""
     global sheet
     if sheet is None:
         if not init_google_sheets():
@@ -283,30 +280,44 @@ def add_worker_to_sheet(fullname: str, workshop: str, is_outsourcer: bool = Fals
         worksheet = sheet.worksheet(MAIN_SHEET)
         all_data = worksheet.get_all_values()
         
-        # Знаходимо останній рядок з даними
-        last_row = len(all_data) + 1
+        # Знаходимо рядок "Аутсорс"
+        outsourcer_row = None
+        for i, row in enumerate(all_data, start=1):
+            if len(row) > 1 and row[1] == 'Аутсорс':
+                outsourcer_row = i
+                break
         
-        # Визначаємо колонку для цеху
-        workshop_col = 'DMT' if workshop == 'ДМТ' else workshop
-        
-        # Додаємо працівника
-        row_data = ['', fullname]  # A - номер, B - ПІБ
-        worksheet.update(f'A{last_row}:B{last_row}', [[last_row - 4, fullname]])
-        
-        # Якщо аутсорсер, додаємо позначку
         if is_outsourcer:
-            # Знаходимо рядок "Аутсорс" і додаємо після нього
-            outsourcer_row = None
-            for i, row in enumerate(all_data, start=1):
-                if len(row) > 1 and row[1] == 'Аутсорс':
-                    outsourcer_row = i
-                    break
-            
+            # Додаємо аутсорсера після рядка "Аутсорс"
             if outsourcer_row:
-                # Вставляємо новий рядок після "Аутсорс"
-                worksheet.insert_row(['', fullname], outsourcer_row + 1)
+                # Знаходимо останній рядок в секції аутсорсерів
+                last_outsourcer_row = outsourcer_row
+                for i in range(outsourcer_row + 1, len(all_data) + 1):
+                    if i >= len(all_data):
+                        last_outsourcer_row = i - 1
+                        break
+                    if len(all_data[i-1]) < 2 or not all_data[i-1][1]:
+                        last_outsourcer_row = i - 1
+                        break
+                    last_outsourcer_row = i
+                
+                worksheet.insert_row(['', fullname], last_outsourcer_row + 1)
+                logger.info(f"✅ Added outsourcer: {fullname} at row {last_outsourcer_row + 1}")
+            else:
+                # Якщо немає секції аутсорсерів, створюємо її
+                worksheet.append_row(['', 'Аутсорс'])
+                worksheet.append_row(['', fullname])
+                logger.info(f"✅ Added outsourcer section and worker: {fullname}")
+        else:
+            # Додаємо офіційного працівника перед секцією аутсорсерів
+            if outsourcer_row:
+                worksheet.insert_row(['', fullname], outsourcer_row)
+                logger.info(f"✅ Added official worker: {fullname} before outsourcer section at row {outsourcer_row}")
+            else:
+                # Якщо немає секції аутсорсерів, додаємо в кінець
+                worksheet.append_row(['', fullname])
+                logger.info(f"✅ Added official worker: {fullname} at end")
         
-        logger.info(f"✅ Added worker: {fullname} ({workshop}, outsourcer: {is_outsourcer})")
         return True
     except Exception as e:
         logger.error(f"Error adding worker: {e}")
@@ -346,3 +357,84 @@ def check_connection():
     if sheet is None:
         return init_google_sheets()
     return True
+
+def sync_workers_to_local_db():
+    from app.database import add_worker, get_all_workers_by_shop
+    
+    workers = load_workers_from_sheets()
+    if not workers:
+        return False
+    
+    existing = {}
+    for workshop in ['DMT', 'Пакування']:
+        for w in get_all_workers_by_shop(workshop):
+            existing[f"{w['workshop']}|{w['fullname']}"] = True
+    
+    added = 0
+    for w in workers:
+        key = f"{w['workshop']}|{w['fullname']}"
+        if key not in existing:
+            if add_worker(w['fullname'], w['workshop']):
+                added += 1
+    
+    return added > 0
+
+def load_workers_from_sheets():
+    global sheet
+    if sheet is None:
+        if not init_google_sheets():
+            return []
+    
+    try:
+        worksheet = sheet.worksheet(MAIN_SHEET)
+        all_data = worksheet.get_all_values()
+        
+        date_columns = get_date_columns()
+        if not date_columns:
+            return []
+        
+        first_day = min(date_columns.keys())
+        first_cols = date_columns[first_day]
+        start_col = first_cols['start_col']
+        
+        workers = []
+        is_outsourcer_section = False
+        
+        for row_idx, row in enumerate(all_data[4:], start=5):
+            if len(row) < 2:
+                continue
+            
+            first_col = str(row[1]).strip() if len(row) > 1 else ''
+            if first_col == 'Аутсорс':
+                is_outsourcer_section = True
+                continue
+            
+            if not row[1]:
+                continue
+            
+            fullname = str(row[1]).strip()
+            if not fullname or fullname.startswith('Бригадир'):
+                continue
+            
+            operation_code = str(row[start_col]).strip() if start_col < len(row) else ''
+            
+            if operation_code in ['601', '602', '603']:
+                workshop = 'DMT'
+            elif operation_code in ['475', '1088', '1256']:
+                workshop = 'Пакування'
+            else:
+                continue
+            
+            workers.append({
+                'id': row_idx,
+                'fullname': fullname,
+                'workshop': workshop,
+                'operation_code': operation_code,
+                'default_ktu': 1.0,
+                'isOutsourcer': is_outsourcer_section
+            })
+        
+        return workers
+    except Exception as e:
+        logger.error(f"Error loading workers: {e}")
+        return []
