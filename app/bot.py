@@ -21,176 +21,164 @@ dp.middleware.setup(LoggingMiddleware())
 
 current_shift = 8
 
-def main_keyboard():
+# Словник для зберігання ролей користувачів
+user_roles = {}
+
+# ID майстра (замініть на ваш Telegram ID)
+MASTER_USER_ID = 8603605527  # ВАШ ID Telegram
+
+def get_user_role(user_id: int) -> str:
+    """Отримати роль користувача"""
+    return user_roles.get(user_id, 'brigadier')
+
+def is_master(user_id: int) -> bool:
+    """Перевірити чи користувач майстер"""
+    return get_user_role(user_id) == 'master'
+
+def main_keyboard(user_id: int):
+    """Головне меню бота (залежить від ролі)"""
+    role = get_user_role(user_id)
+    role_text = "👑 Майстер" if role == 'master' else "🔧 Бригадир"
+    
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🏭 Цех ДМТ", web_app=WebAppInfo(url=f"{APP_URL}/workshop/DMT"))],
-            [KeyboardButton(text="📦 Цех Пакування", web_app=WebAppInfo(url=f"{APP_URL}/workshop/Пакування"))],
-            [KeyboardButton(text="📝 Рецепт", web_app=WebAppInfo(url=f"{APP_URL}/recipe"))],
-            [KeyboardButton(text="☀️ Зміна"), KeyboardButton(text="📊 Результат")],
+            [KeyboardButton(text=f"🏭 Цех ДМТ ({role_text})", web_app=WebAppInfo(url=f"{APP_URL}/workshop/DMT?role={role}"))],
             [KeyboardButton(text="❓ Допомога")]
         ],
         resize_keyboard=True
     )
+    
+    # Якщо майстер, додаємо кнопку управління правами
+    if role == 'master':
+        keyboard.keyboard.append([KeyboardButton(text="👥 Управління правами")])
+    
     return keyboard
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
-    welcome_text = """
-🌟 *Вітаю в боті обліку робітників та рецептур!*
+    user_id = message.from_user.id
+    username = message.from_user.username or message.from_user.first_name
+    
+    # Встановлюємо роль
+    if user_id == MASTER_USER_ID:
+        user_roles[user_id] = 'master'
+        role_text = "👑 Майстер"
+    else:
+        user_roles[user_id] = 'brigadier'
+        role_text = "🔧 Бригадир"
+    
+    welcome_text = f"""
+🌟 *Вітаю, {username}!*
 
-*Основні функції:*
-• 🏭 **Цех ДМТ** - облік працівників цеху ДМТ
-• 📦 **Цех Пакування** - облік працівників цеху Пакування
-• 📝 **Рецепт** - калькулятор рецептури та замовлення продуктів
-• ☀️ **Зміна** - вибір 8 або 9 годин робочої зміни
-• 📊 **Результат** - перегляд звіту за сьогодні
+Ви увійшли як *{role_text}*
 
-*Коефіцієнт КТУ:* 0,9 | 1 | 1,1 | 1,2 | 1,3
-*Причини невиходу:* Вщ (вихідний), Пр (прогул), На (відпустка за свій рахунок), Нз (не з'явився)
+🏭 *Цех ДМТ* - облік працівників цеху ДМТ
+
+📋 *Можливості:*
+• Відмітка присутності працівників
+• Вибір КТУ (0.9 - 1.3)
+• Фіксація невиходів (Вщ, В, На, Пр, Нз)
+• Перегляд даних за будь-яку дату {'' if user_id == MASTER_USER_ID else '(тільки перегляд)'}
+• Додавання нових працівників {'' if user_id == MASTER_USER_ID else '(тільки для Майстра)'}
+
+{'' if user_id == MASTER_USER_ID else '⚠️ *Увага!* Ви маєте права лише на внесення даних за поточний день.'}
     """
-    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard())
-
-@dp.message_handler(lambda msg: msg.text == "☀️ Зміна")
-async def select_shift(message: types.Message):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🕗 8 годин", callback_data="shift_8")],
-            [InlineKeyboardButton(text="🕘 9 годин", callback_data="shift_9")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-        ]
-    )
-    await message.answer("⏰ *Виберіть тривалість робочої зміни:*", 
-                        parse_mode="Markdown", 
-                        reply_markup=keyboard)
-
-@dp.callback_query_handler(lambda c: c.data.startswith("shift_"))
-async def set_shift(callback_query: types.CallbackQuery):
-    global current_shift
-    shift = int(callback_query.data.split("_")[1])
-    current_shift = shift
-    
-    from app.database import set_current_shift_db
-    set_current_shift_db(shift)
-    
-    await callback_query.answer(f"✅ Зміна {shift} годин встановлена")
-    await callback_query.message.edit_text(
-        f"✅ *Встановлено {shift}-годинну робочу зміну*",
-        parse_mode="Markdown"
-    )
-    await callback_query.message.answer("Повертаюсь до головного меню...", reply_markup=main_keyboard())
-
-@dp.callback_query_handler(lambda c: c.data == "back_to_menu")
-async def back_to_menu(callback_query: types.CallbackQuery):
-    await callback_query.message.delete()
-    await callback_query.message.answer("Головне меню:", reply_markup=main_keyboard())
-    await callback_query.answer()
-
-@dp.message_handler(lambda msg: msg.text == "📊 Результат")
-async def show_result(message: types.Message):
-    from app.database import get_attendance_report
-    
-    report = get_attendance_report()
-    
-    if not report:
-        await message.answer("📭 *Немає даних про відмічання за сьогодні*", parse_mode="Markdown")
-        return
-    
-    today = datetime.now().strftime("%d.%m.%Y")
-    text = f"📊 *ЗВІТ ЗА {today}*\n" + "─" * 20 + "\n\n"
-    
-    present = [r for r in report if r['status'] == 'present']
-    vacation = [r for r in report if r['status'] == 'Вщ']
-    sick = [r for r in report if r['status'] == 'Пр']
-    study = [r for r in report if r['status'] == 'На']
-    no_show = [r for r in report if r['status'] == 'Нз']
-    
-    if present:
-        text += "✅ *ПРИСУТНІ:*\n"
-        for p in present:
-            text += f"  • {p['fullname']} | КТУ: {p['ktu']} | {p['shift_hours']} год\n"
-        text += "\n"
-    
-    if vacation:
-        text += "🏖️ *ВИХІДНІ (Вщ):*\n"
-        for v in vacation:
-            text += f"  • {v['fullname']}\n"
-        text += "\n"
-    
-    if sick:
-        text += "😷 *ПРОГУЛ (Пр):*\n"
-        for s in sick:
-            text += f"  • {s['fullname']}\n"
-        text += "\n"
-    
-    if study:
-        text += "📚 *ВІДПУСТКА ЗА СВІЙ РАХУНОК (На):*\n"
-        for st in study:
-            text += f"  • {st['fullname']}\n"
-        text += "\n"
-    
-    if no_show:
-        text += "❌ *НЕ З'ЯВИВСЯ (Нз):*\n"
-        for ns in no_show:
-            text += f"  • {ns['fullname']}\n"
-        text += "\n"
-    
-    text += "─" * 20 + "\n"
-    text += f"📈 *ВСЬОГО:* {len(report)} працівників\n"
-    text += f"✅ Присутні: {len(present)}\n"
-    text += f"❌ Відсутні: {len(report) - len(present)}\n"
-    
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard(user_id))
 
 @dp.message_handler(lambda msg: msg.text == "❓ Допомога")
 async def help_command(message: types.Message):
-    help_text = """
-❓ *Довідка користувача*
+    user_id = message.from_user.id
+    role = get_user_role(user_id)
+    
+    help_text = f"""
+❓ *Довідка користувача ({'👑 Майстер' if role == 'master' else '🔧 Бригадир'})*
 
-*Облік працівників:*
-• 🏭 **Цех ДМТ** - відкрити міні-додаток для цеху ДМТ
-• 📦 **Цех Пакування** - відкрити міні-додаток для цеху Пакування
-• ☀️ **Зміна** - вибрати 8 або 9 годин робочої зміни
-• 📊 **Результат** - переглянути звіт за сьогодні
+*Основні функції:*
+• 🏭 **Цех ДМТ** - відкрити міні-додаток для обліку
 
-*Рецептура:*
-• 📝 **Рецепт** - калькулятор рецептури (80% основа + 10% + 10%)
-• Виберіть продукт та введіть кількість в кг
-• Натисніть "Замовити в склад" для відправки замовлення
+*В міні-додатку:*
+• ✅ **Присутній** - відмітити присутність з вибором КТУ
+• 📋 **Відмітити відсутніх** - вибрати статус (Вщ, В, На, Пр, Нз)
+• ➕ **Додати працівника** - додати нового працівника {'(тільки для Майстра)' if role != 'master' else ''}
+• 🔄 **Синхронізувати** - оновити дані в Google Sheets
 
 *Коефіцієнт КТУ:*
 0,9 | 1 | 1,1 | 1,2 | 1,3
 
 *Причини невиходу:*
 • Вщ - Вихідний
+• В - Відпустка
+• На - За свій рахунок
 • Пр - Прогул
-• На - Відпустка за власний рахунок
-• Нз - Не з'явився (-лась)
-    """
+• Нз - Не з'явився
+"""
     await message.answer(help_text, parse_mode="Markdown")
 
-@dp.message_handler(content_types=['web_app_data'])
-async def handle_web_app_data(message: types.Message):
-    data = message.web_app_data.data
+@dp.message_handler(lambda msg: msg.text == "👥 Управління правами")
+async def manage_roles(message: types.Message):
+    user_id = message.from_user.id
+    if not is_master(user_id):
+        await message.answer("❌ У вас немає прав для цієї дії!")
+        return
     
-    try:
-        order = json.loads(data)
-        if order.get('type') == 'order':
-            await message.answer(
-                f"✅ *Замовлення прийнято!*\n\n"
-                f"📦 *Продукт:* {order['product']}\n"
-                f"⚖️ *Кількість:* {order['weight']} кг\n\n"
-                f"📋 Деталі замовлення відправлені на склад.",
-                parse_mode="Markdown"
-            )
-    except Exception as e:
-        logger.error(f"Error processing web app data: {e}")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Додати Майстра", callback_data="add_master")],
+            [InlineKeyboardButton(text="➕ Додати Бригадира", callback_data="add_brigadier")],
+            [InlineKeyboardButton(text="📋 Список користувачів", callback_data="list_users")]
+        ]
+    )
+    await message.answer("👥 *Управління правами користувачів*\n\nВиберіть дію:", parse_mode="Markdown", reply_markup=keyboard)
+
+@dp.callback_query_handler(lambda c: c.data in ["add_master", "add_brigadier", "list_users"])
+async def role_actions(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    if not is_master(user_id):
+        await callback.answer("❌ У вас немає прав!", show_alert=True)
+        return
+    
+    if callback.data == "add_master":
+        await callback.message.answer("Введіть ID користувача Telegram, якому хочете дати права Майстра:\n(Можна дізнатися через @userinfobot)")
+        
+        @dp.message_handler()
+        async def add_master_handler(msg: types.Message):
+            try:
+                target_id = int(msg.text.strip())
+                user_roles[target_id] = 'master'
+                await msg.answer(f"✅ Користувач {target_id} отримав права Майстра!")
+            except:
+                await msg.answer("❌ Неправильний ID. Спробуйте ще раз.")
+    
+    elif callback.data == "add_brigadier":
+        await callback.message.answer("Введіть ID користувача Telegram, якому хочете дати права Бригадира:")
+        
+        @dp.message_handler()
+        async def add_brigadier_handler(msg: types.Message):
+            try:
+                target_id = int(msg.text.strip())
+                user_roles[target_id] = 'brigadier'
+                await msg.answer(f"✅ Користувач {target_id} отримав права Бригадира!")
+            except:
+                await msg.answer("❌ Неправильний ID. Спробуйте ще раз.")
+    
+    elif callback.data == "list_users":
+        if not user_roles:
+            await callback.message.answer("📋 Список користувачів порожній")
+        else:
+            text = "📋 *Список користувачів:*\n\n"
+            for uid, role in user_roles.items():
+                role_icon = "👑 Майстер" if role == 'master' else "🔧 Бригадир"
+                text += f"• `{uid}` - {role_icon}\n"
+            await callback.message.answer(text, parse_mode="Markdown")
+    
+    await callback.answer()
 
 @dp.message_handler()
 async def echo(message: types.Message):
+    user_id = message.from_user.id
     await message.answer(
         "🙏 Будь ласка, використовуйте кнопки меню для навігації.",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard(user_id)
     )
 
 try:
