@@ -21,6 +21,41 @@ OPERATION_CODES = ['601', '602', '603', '475', '1088', '1256']
 gc = None
 sheet = None
 
+def init_google_sheets():
+    """Ініціалізація підключення до Google Sheets"""
+    global gc, sheet
+    try:
+        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        
+        creds = None
+        creds_path = 'credentials.json'
+        if not os.path.exists(creds_path):
+            creds_path = '/opt/render/project/src/credentials.json'
+        
+        if os.path.exists(creds_path):
+            creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+            logger.info(f"✅ Credentials loaded from {creds_path}")
+        
+        if not creds:
+            creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+            if creds_json:
+                import json
+                creds_dict = json.loads(creds_json)
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                logger.info("✅ Credentials loaded from environment variable")
+        
+        if not creds:
+            logger.error("❌ No credentials found")
+            return False
+        
+        gc = gspread.authorize(creds)
+        sheet = gc.open_by_key(SPREADSHEET_ID)
+        logger.info(f"✅ Connected to: {sheet.title}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Connection error: {e}")
+        return False
+
 # Кеш для довідника ТО
 _to_cache = None
 _cache_time = None
@@ -28,8 +63,7 @@ CACHE_DURATION = 3600  # 1 година
 
 def get_default_to_for_worker(fullname: str):
     """Отримати стандартну ТО для працівника з довідника (з кешем)"""
-    global _to_cache, _cache_time
-    global sheet
+    global sheet, _to_cache, _cache_time
     
     if sheet is None:
         if not init_google_sheets():
@@ -245,7 +279,7 @@ def update_shift_data(date_str: str, workers_data: list):
                     worksheet.update_cell(row, value_col + 1, value)
             
             updated += 1
-            time.sleep(0.1)  # Затримка між запитами, щоб уникнути лімітів
+            time.sleep(0.1)
         
         save_to_history(date_str, workers_data)
         return {"ok": True, "updated": updated}
@@ -332,6 +366,7 @@ def save_to_history(date_str: str, workers_data: list):
         logger.error(f"Error saving to history: {e}")
 
 def check_connection():
+    """Перевіряє підключення до Google Sheets"""
     global sheet
     if sheet is None:
         return init_google_sheets()
